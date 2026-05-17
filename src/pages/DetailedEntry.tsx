@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { db, auth } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { formatCurrency } from '../lib/utils';
 import { useCompany } from '../context/CompanyContext';
 import { backupData } from '../lib/backup';
 import { encryptNumeric, decryptNumeric } from '../lib/encryption';
 import { motion, AnimatePresence } from 'motion/react';
-import { Save, Trash2, Plus, ArrowRight, History, Calculator, CheckCircle2 } from 'lucide-react';
+import { Save, Trash2, Plus, ArrowRight, History, Calculator, CheckCircle2, Edit2, X } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 const CATEGORIES = [
@@ -27,18 +27,31 @@ const CATEGORIES = [
 interface DetailedEntryData {
   id: string;
   date: any;
+  month: string;
+  year: number;
   breakdown: Record<string, number>;
   total: number;
   userId: string;
   companyId: string;
+  isEncrypted?: boolean;
 }
+
+const MONTHS = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+];
+
+const YEARS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
 export default function DetailedEntry() {
   const { selectedCompany } = useCompany();
   const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [selectedMonth, setSelectedMonth] = useState(MONTHS[new Date().getMonth()]);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [entries, setEntries] = useState<DetailedEntryData[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!auth.currentUser || !selectedCompany) return;
@@ -82,26 +95,45 @@ export default function DetailedEntry() {
   };
 
   const handleSave = async () => {
+    const { validateNumericInput } = await import('../lib/validation');
+    
     if (!auth.currentUser || !selectedCompany) return;
     
     const numericBreakdown: Record<string, number> = {};
+    let hasValidationError = false;
+
     (Object.entries(amounts) as [string, string][]).forEach(([key, val]) => {
-      const num = parseFloat(val);
-      if (num > 0) numericBreakdown[key] = num;
+      if (val.trim() === '') return;
+      
+      const validation = validateNumericInput(val);
+      if (!validation.isValid) {
+        alert(`${CATEGORIES.find(c => c.id === key)?.label}: ${validation.error}`);
+        hasValidationError = true;
+        return;
+      }
+      
+      if (validation.numericValue > 0) {
+        numericBreakdown[key] = validation.numericValue;
+      }
     });
 
-    if (Object.keys(numericBreakdown).length === 0) return;
+    if (hasValidationError) return;
+    if (Object.keys(numericBreakdown).length === 0) {
+      alert('Veuillez saisir au moins un montant valide.');
+      return;
+    }
 
     setIsSaving(true);
     try {
-      const numericTotal = calculateTotal();
+      const numericTotal = Object.values(numericBreakdown).reduce((a, b) => a + b, 0);
       const encryptedBreakdown: Record<string, string> = {};
       Object.entries(numericBreakdown).forEach(([key, val]) => {
         encryptedBreakdown[key] = encryptNumeric(val);
       });
 
-      const entryData = {
-        date: serverTimestamp(),
+      const entryData: any = {
+        month: selectedMonth,
+        year: selectedYear,
         breakdown: encryptedBreakdown,
         total: encryptNumeric(numericTotal),
         userId: auth.currentUser.uid,
@@ -109,16 +141,40 @@ export default function DetailedEntry() {
         isEncrypted: true
       };
 
-      await addDoc(collection(db, 'detailed_entries'), entryData);
-      await backupData('DETAILED_ENTRY_CAPTURE', { ...entryData, breakdown: numericBreakdown, total: numericTotal });
+      if (editingId) {
+        await updateDoc(doc(db, 'detailed_entries', editingId), entryData);
+        await backupData('DETAILED_ENTRY_UPDATE', { ...entryData, id: editingId, breakdown: numericBreakdown, total: numericTotal });
+        setEditingId(null);
+      } else {
+        entryData.date = serverTimestamp();
+        await addDoc(collection(db, 'detailed_entries'), entryData);
+        await backupData('DETAILED_ENTRY_CAPTURE', { ...entryData, breakdown: numericBreakdown, total: numericTotal });
+      }
       
       setAmounts({});
-      alert('Saisie enregistrée avec succès.');
+      alert(editingId ? 'Saisie mise à jour avec succès.' : 'Saisie enregistrée avec succès.');
     } catch (error) {
       console.error('Save error:', error);
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleEdit = (entry: DetailedEntryData) => {
+    setEditingId(entry.id);
+    const newAmounts: Record<string, string> = {};
+    Object.entries(entry.breakdown).forEach(([k, v]) => {
+      newAmounts[k] = v.toString();
+    });
+    setAmounts(newAmounts);
+    setSelectedMonth(entry.month);
+    setSelectedYear(entry.year);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setAmounts({});
   };
 
   const handleDelete = async (id: string) => {
@@ -128,35 +184,61 @@ export default function DetailedEntry() {
 
   return (
     <div className="space-y-10 pb-20">
-      <section>
-        <p className="text-secondary font-bold text-xs uppercase tracking-[0.2em] mb-2">Opérations Journalières</p>
-        <h1 className="font-display font-bold text-4xl text-on-surface">Saisie Détaillée</h1>
-      </section>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-10 border-b border-outline-variant pb-6">
+        <section>
+          <p className="text-secondary font-bold text-xs uppercase tracking-[0.2em] mb-2">Opérations Journalières</p>
+          <h1 className="font-display font-bold text-3xl sm:text-4xl text-on-surface">Saisie Détaillée</h1>
+        </section>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8">
         {/* Entry Form */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="bg-white rounded-[40px] border border-outline-variant shadow-sm overflow-hidden">
-            <div className="p-8 border-b border-outline-variant flex justify-between items-center bg-surface/50">
+          <div className="bg-white rounded-[32px] sm:rounded-[40px] border border-outline-variant shadow-sm overflow-hidden">
+            <div className="p-6 sm:p-8 border-b border-outline-variant flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-surface/50">
               <div className="flex items-center gap-3">
                 <Calculator className="text-primary-container" size={24} />
-                <h2 className="font-display font-bold text-xl">Nouvelle Saisie</h2>
+                <h2 className="font-display font-bold text-xl">{editingId ? 'Modifier la Saisie' : 'Nouvelle Saisie'}</h2>
               </div>
-              <div className="text-right">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Total calculé</p>
-                <p className="font-display font-bold text-2xl text-primary-container">{formatCurrency(calculateTotal())}</p>
+              <div className="flex flex-wrap gap-4 w-full sm:w-auto">
+                <div className="flex-1 sm:flex-none text-left sm:text-right">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Mois</p>
+                  <select 
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(e.target.value)}
+                    className="bg-transparent font-display font-bold text-sm text-primary-container outline-none appearance-none cursor-pointer border-b border-primary-container/20 sm:border-none pb-1 sm:pb-0"
+                  >
+                    {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div className="flex-1 sm:flex-none text-left sm:text-right">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Année</p>
+                  <select 
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                    className="bg-transparent font-display font-bold text-sm text-primary-container outline-none appearance-none cursor-pointer border-b border-primary-container/20 sm:border-none pb-1 sm:pb-0"
+                  >
+                    {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+                <div className="w-full sm:w-auto text-right pl-0 sm:pl-4 border-l-0 sm:border-l border-outline-variant pt-2 sm:pt-0">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1 text-center sm:text-right">Total calculé</p>
+                  <p className="font-display font-bold text-3xl sm:text-2xl text-primary-container text-center sm:text-right">{formatCurrency(calculateTotal())}</p>
+                </div>
               </div>
             </div>
             
-            <div className="p-8 space-y-4">
+            <div className="p-4 sm:p-8 space-y-4">
               {CATEGORIES.map((cat) => (
-                <div key={cat.id} className="group flex items-center gap-4 p-4 rounded-2xl hover:bg-background transition-all border border-transparent hover:border-outline-variant">
-                  <div className={cn("w-2 h-10 rounded-full shrink-0", cat.color)} />
-                  <div className="flex-grow">
-                    <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">
+                <div key={cat.id} className="group flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 p-4 rounded-2xl hover:bg-background transition-all border border-outline-variant sm:border-transparent hover:border-outline-variant bg-surface/30 sm:bg-transparent">
+                  <div className="flex items-center gap-3">
+                    <div className={cn("w-2 h-8 sm:h-10 rounded-full shrink-0", cat.color)} />
+                    <label className="block text-[10px] font-bold uppercase tracking-widest text-on-surface-variant sm:mb-1">
                       {cat.label}
                     </label>
-                    <div className="relative">
+                  </div>
+                  <div className="flex-grow flex items-center gap-3">
+                    <div className="relative flex-grow">
                        <input 
                          type="number"
                          placeholder="0.00"
@@ -166,26 +248,38 @@ export default function DetailedEntry() {
                        />
                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant font-bold text-sm">€</span>
                     </div>
+                    {amounts[cat.id] && parseFloat(amounts[cat.id]) > 0 && (
+                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="shrink-0">
+                        <CheckCircle2 className="text-green-500" size={20} />
+                      </motion.div>
+                    )}
                   </div>
-                  {amounts[cat.id] && parseFloat(amounts[cat.id]) > 0 && (
-                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
-                      <CheckCircle2 className="text-green-500" size={20} />
-                    </motion.div>
-                  )}
                 </div>
               ))}
             </div>
 
-            <div className="p-8 bg-surface/50 border-t border-outline-variant">
+            <div className="p-6 sm:p-8 bg-surface/50 border-t border-outline-variant flex gap-4">
+              {editingId && (
+                <button 
+                  onClick={handleCancelEdit}
+                  className="flex-1 bg-white border border-outline-variant text-on-surface-variant py-5 rounded-2xl font-display font-bold uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 hover:bg-background transition-all"
+                >
+                  <X size={18} />
+                  Annuler
+                </button>
+              )}
               <button 
                 onClick={handleSave}
                 disabled={isSaving || calculateTotal() === 0}
-                className="w-full bg-primary-container text-white py-5 rounded-2xl font-display font-bold uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl shadow-primary-container/20"
+                className={cn(
+                  "flex-[2] text-white py-5 rounded-2xl font-display font-bold uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl",
+                  editingId ? "bg-secondary shadow-secondary/20" : "bg-primary-container shadow-primary-container/20"
+                )}
               >
-                {isSaving ? 'Enregistrement...' : (
+                {isSaving ? 'Traitement...' : (
                   <>
                     <Save size={18} />
-                    Sauvegarder la session
+                    {editingId ? 'Mettre à jour' : 'Sauvegarder la session'}
                   </>
                 )}
               </button>
@@ -218,17 +312,32 @@ export default function DetailedEntry() {
                   <div key={entry.id} className="p-6 hover:bg-background transition-colors group">
                     <div className="flex justify-between items-start mb-4">
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                          {entry.date?.toDate().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                        </p>
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-primary-container bg-primary-container/10 px-2 py-0.5 rounded-md">
+                            {entry.month} {entry.year}
+                          </p>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                            {entry.date?.toDate().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                          </p>
+                        </div>
                         <p className="font-display font-bold text-xl">{formatCurrency(entry.total)}</p>
                       </div>
-                      <button 
-                        onClick={() => handleDelete(entry.id)}
-                        className="p-2 text-on-surface-variant hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        <button 
+                          onClick={() => handleEdit(entry)}
+                          className="p-2 text-primary-container hover:bg-primary-container/10 rounded-xl"
+                          title="Modifier"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(entry.id)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-xl"
+                          title="Supprimer"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                        {(Object.entries(entry.breakdown) as [string, number][]).map(([key, val]) => (

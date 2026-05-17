@@ -47,7 +47,7 @@ app.post("/api/insights", async (req, res) => {
       3. La détection d'anomalies (risque de désabonnement, pics, changements de marché).
       4. Recommandations stratégiques (tarification, effectifs, expansion).
 
-      Gardez un ton sophistiqué, faisant autorité et axé sur les données. RÉPONDEZ EXCLUSIVEMENT EN FRANÇAIS.
+      Gardez un ton sophistiqué, faisant autorité et axé sur les données. RÉPONDEZ EXCLUSIVEMENT EN FRANÇAIS. Tous les montants financiers doivent utiliser le symbole Euro (€).
     `;
 
     const response = await ai.models.generateContent({
@@ -125,7 +125,8 @@ app.post("/api/copilot", async (req, res) => {
           2. Utilisez les données fournies pour répondre aux questions spécifiques.
           3. Suggérez des actions basées sur les tendances observées.
           4. Répondez toujours en FRANÇAIS.
-          5. Si vous ne connaissez pas la réponse ou si les données sont insuffisantes, soyez honnête.
+          5. Toute mention de montant financier doit être exprimée en EUROS (€).
+          6. Si vous ne connaissez pas la réponse ou si les données sont insuffisantes, soyez honnête.
         `,
       },
       history: history.map((h: any) => ({

@@ -29,9 +29,24 @@ export default function Revenue() {
   };
 
   const handleAdd = async () => {
-    if (!newMonth || !newAmount || !auth.currentUser || !selectedCompany) return;
+    const { validateNumericInput, validateStringInput } = await import('../lib/validation');
+    
+    const monthValidation = validateStringInput(newMonth, 3, 20);
+    if (!monthValidation.isValid) {
+      alert(monthValidation.error);
+      return;
+    }
+
+    const revenueValidation = validateNumericInput(newAmount);
+    if (!revenueValidation.isValid) {
+      alert(revenueValidation.error);
+      return;
+    }
+
+    if (!auth.currentUser || !selectedCompany) return;
+
     try {
-      const numericRevenue = parseFloat(newAmount);
+      const numericRevenue = revenueValidation.numericValue;
       const revenueData = {
         month: newMonth,
         revenue: encryptNumeric(numericRevenue),
@@ -65,25 +80,27 @@ export default function Revenue() {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
         <div>
           <p className="text-secondary font-bold text-xs uppercase tracking-[0.2em] mb-2">Gestion de Trésorerie</p>
-          <h1 className="font-display font-bold text-4xl text-on-surface leading-tight">Suivi des revenus</h1>
+          <h1 className="font-display font-bold text-3xl sm:text-4xl text-on-surface leading-tight">Suivi des revenus</h1>
         </div>
-        <div className="flex gap-3">
-          <button className="p-3 bg-white border border-outline-variant rounded-xl text-on-surface-variant hover:text-primary-container transition-colors shadow-sm">
-            <Filter size={18} />
-          </button>
-          <button 
-            onClick={handleExport}
-            className="p-3 bg-white border border-outline-variant rounded-xl text-on-surface-variant hover:text-primary-container transition-colors shadow-sm"
-            title="Exporter CSV"
-          >
-            <Download size={18} />
-          </button>
+        <div className="flex flex-wrap sm:flex-nowrap gap-3">
+          <div className="flex gap-3 flex-grow sm:flex-grow-0">
+            <button className="flex-grow sm:flex-none p-3 bg-white border border-outline-variant rounded-xl text-on-surface-variant hover:text-primary-container transition-colors shadow-sm flex items-center justify-center">
+              <Filter size={18} />
+            </button>
+            <button 
+              onClick={handleExport}
+              className="flex-grow sm:flex-none p-3 bg-white border border-outline-variant rounded-xl text-on-surface-variant hover:text-primary-container transition-colors shadow-sm flex items-center justify-center"
+              title="Exporter CSV"
+            >
+              <Download size={18} />
+            </button>
+          </div>
           <button 
             onClick={() => setIsAdding(true)}
-            className="flex items-center gap-2 bg-primary-container text-white font-bold px-6 py-3 rounded-xl shadow-lg shadow-primary-container/20 hover:brightness-110 active:scale-95 transition-all text-sm uppercase tracking-widest"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary-container text-white font-bold px-6 py-4 sm:py-3 rounded-2xl sm:rounded-xl shadow-lg shadow-primary-container/20 hover:brightness-110 active:scale-95 transition-all text-xs uppercase tracking-widest"
           >
             <Plus size={18} />
             <span>Ajouter un Enregistrement</span>
@@ -94,11 +111,11 @@ export default function Revenue() {
       {/* Add Record Overlay */}
       <AnimatePresence>
         {isAdding && (
-          <motion.div 
+            <motion.div 
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            className="bg-white p-8 rounded-[32px] border border-outline-variant shadow-sm grid grid-cols-1 md:grid-cols-3 gap-6 items-end"
+            className="bg-white p-6 sm:p-8 rounded-[32px] border border-outline-variant shadow-sm grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6 items-end"
           >
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.25em]">Période de Rapport</label>
@@ -141,7 +158,39 @@ export default function Revenue() {
 
       <div className="bg-white rounded-[32px] border border-outline-variant shadow-sm overflow-hidden relative">
         <div className="absolute inset-0 dot-grid opacity-5 pointer-events-none"></div>
-        <div className="overflow-x-auto relative z-10">
+        
+        {/* Mobile List View */}
+        <div className="sm:hidden divide-y divide-outline-variant relative z-10">
+          {loading ? (
+            <div className="p-12 text-center animate-pulse opacity-70 text-on-surface-variant">Chargement...</div>
+          ) : revenues.length === 0 ? (
+            <div className="p-12 text-center text-on-surface-variant opacity-70">Aucune donnée.</div>
+          ) : (
+            revenues.map((rev) => (
+              <div key={rev.id} className="p-5 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h5 className="font-bold font-display text-lg">Revenu de {rev.month}</h5>
+                    <span className="inline-block mt-1 px-2 py-0.5 bg-secondary/10 text-secondary text-[9px] font-black uppercase rounded-md tracking-widest border border-secondary/15">Réglé</span>
+                  </div>
+                  <button 
+                    onClick={() => handleDelete(rev.id)}
+                    className="p-2 text-red-500 bg-red-50 rounded-xl"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+                <div className="bg-surface p-4 rounded-2xl flex justify-between items-center">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Montant Total</p>
+                  <p className="font-display font-bold text-2xl text-primary-container">{formatCurrency(rev.revenue)}</p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden sm:block overflow-x-auto relative z-10">
           <table className="w-full text-left">
             <thead className="bg-surface border-b border-outline-variant">
               <tr>
@@ -159,7 +208,7 @@ export default function Revenue() {
               ) : (
                 revenues.map((rev) => (
                   <tr key={rev.id} className="hover:bg-background transition-colors group">
-                    <td className="px-8 py-6 font-display text-lg font-bold">Revenu de {rev.month}</td>
+                    <td className="px-8 py-6 font-display text-lg font-bold truncate max-w-[200px]">Revenu de {rev.month}</td>
                     <td className="px-8 py-6 text-right font-display font-bold text-xl">{formatCurrency(rev.revenue)}</td>
                     <td className="px-8 py-6 text-center">
                        <span className="px-3 py-1 bg-secondary/10 text-secondary text-[10px] font-bold uppercase rounded-full tracking-widest border border-secondary/20">Réglé</span>

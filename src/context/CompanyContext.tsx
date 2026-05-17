@@ -39,6 +39,7 @@ interface CompanyContextType {
   createCompany: (name: string) => Promise<void>;
   updateCompany: (id: string, name: string) => Promise<void>;
   deleteCompany: (id: string) => Promise<void>;
+  updateGoal: (monthlyGoal: number) => Promise<void>;
 }
 
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
@@ -149,6 +150,13 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   }, [selectedCompany]);
 
   const createCompany = async (name: string) => {
+    const { validateStringInput } = await import('../lib/validation');
+    const validation = validateStringInput(name, 2, 50);
+    if (!validation.isValid) {
+      alert(validation.error);
+      return;
+    }
+
     if (!auth.currentUser) return;
     const companyData = {
       name,
@@ -163,6 +171,13 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateCompany = async (id: string, name: string) => {
+    const { validateStringInput } = await import('../lib/validation');
+    const validation = validateStringInput(name, 2, 50);
+    if (!validation.isValid) {
+      alert(validation.error);
+      return;
+    }
+
     if (!auth.currentUser) return;
     const { doc, updateDoc } = await import('firebase/firestore');
     const companyRef = doc(db, 'companies', id);
@@ -186,6 +201,46 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     await backupData('COMPANY_DELETE', { id });
   };
 
+  const updateGoal = async (monthlyGoal: number) => {
+    const { validateNumericInput } = await import('../lib/validation');
+    const validation = validateNumericInput(monthlyGoal);
+    if (!validation.isValid) {
+      alert(validation.error);
+      return;
+    }
+
+    if (!auth.currentUser || !selectedCompany) return;
+    const { collection, query, where, getDocs, updateDoc, doc, setDoc } = await import('firebase/firestore');
+    const { encryptNumeric } = await import('../lib/encryption');
+
+    const q = query(
+      collection(db, 'goals'),
+      where('userId', '==', auth.currentUser.uid),
+      where('companyId', '==', selectedCompany.id)
+    );
+
+    const snapshot = await getDocs(q);
+    const yearlyGoal = monthlyGoal * 12;
+
+    const goalData = {
+      userId: auth.currentUser.uid,
+      companyId: selectedCompany.id,
+      monthlyGoal: encryptNumeric(monthlyGoal),
+      yearlyGoal: encryptNumeric(yearlyGoal),
+      isEncrypted: true,
+      updatedAt: serverTimestamp()
+    };
+
+    if (snapshot.empty) {
+      await addDoc(collection(db, 'goals'), goalData);
+      await backupData('GOAL_CAPTURE', { ...goalData, monthlyGoal, yearlyGoal });
+    } else {
+      const goalRef = doc(db, 'goals', snapshot.docs[0].id);
+      await updateDoc(goalRef, goalData);
+      await backupData('GOAL_UPDATE', { ...goalData, id: snapshot.docs[0].id, monthlyGoal, yearlyGoal });
+    }
+  };
+
   return (
     <CompanyContext.Provider value={{ 
       companies, 
@@ -196,7 +251,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       loading, 
       createCompany,
       updateCompany,
-      deleteCompany
+      deleteCompany,
+      updateGoal
     }}>
       {children}
     </CompanyContext.Provider>

@@ -51,25 +51,25 @@ export default function Layout() {
       <header className="fixed top-0 z-50 w-full bg-surface/80 backdrop-blur-xl border-b border-outline-variant h-16 flex justify-between items-center px-6">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center shrink-0">
                <Wallet size={18} className="text-on-primary-container" />
             </div>
-            <h1 className="font-display text-2xl font-bold tracking-tight text-on-surface">Reveno <span className="text-secondary font-medium ml-1">AI</span></h1>
+            <h1 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-on-surface truncate">Reveno <span className="text-secondary font-medium ml-1 hidden sm:inline">AI</span></h1>
           </div>
 
           {/* Company Switcher */}
-          <div className="relative border-l border-outline-variant pl-6">
+          <div className="relative border-l border-outline-variant pl-3 sm:pl-6">
             <button 
               onClick={() => setShowCompanySwitch(!showCompanySwitch)}
-              className="flex items-center gap-2 hover:bg-[#F9F9F6] px-3 py-1.5 rounded-xl transition-all group"
+              className="flex items-center gap-2 hover:bg-[#F9F9F6] px-2 sm:px-3 py-1.5 rounded-xl transition-all group max-w-[140px] sm:max-w-none"
             >
-              <div className="w-6 h-6 bg-[#A3AD9F]/20 rounded-md flex items-center justify-center text-[#5A5A40]">
+              <div className="w-6 h-6 bg-[#A3AD9F]/20 rounded-md flex items-center justify-center text-[#5A5A40] shrink-0">
                 <Building2 size={14} />
               </div>
-              <span className="text-sm font-semibold max-w-[120px] truncate">
-                {selectedCompany?.name || 'Créer une entité'}
+              <span className="text-xs sm:text-sm font-semibold truncate hidden xs:block">
+                {selectedCompany?.name || 'Entité'}
               </span>
-              <ChevronDown size={14} className={cn("text-on-surface-variant transition-transform", showCompanySwitch && "rotate-180")} />
+              <ChevronDown size={14} className={cn("text-on-surface-variant transition-transform shrink-0", showCompanySwitch && "rotate-180")} />
             </button>
 
             <AnimatePresence>
@@ -78,9 +78,9 @@ export default function Layout() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="absolute top-full left-6 mt-2 w-72 bg-white border border-outline-variant rounded-2xl shadow-xl p-2 z-50"
+                  className="absolute top-full left-0 sm:left-6 mt-2 w-screen sm:w-72 max-w-[calc(100vw-2rem)] bg-white border border-outline-variant rounded-2xl shadow-2xl p-2 z-50 overflow-hidden"
                 >
-                  <div className="max-h-64 overflow-y-auto space-y-1">
+                  <div className="max-h-80 overflow-y-auto space-y-1 p-1">
                     {companies.map((c) => (
                       <div key={c.id} className="relative group">
                         {editingId === c.id ? (
@@ -222,7 +222,7 @@ export default function Layout() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-grow pt-24 pb-32 px-6 max-w-7xl mx-auto w-full">
+      <main className="flex-grow pt-20 sm:pt-24 pb-32 px-4 sm:px-6 max-w-7xl mx-auto w-full">
         {selectedCompany ? (
           <Outlet />
         ) : (
@@ -247,29 +247,22 @@ export default function Layout() {
       </main>
 
       {/* Bottom Nav (Mobile) */}
-      <nav className="md:hidden fixed bottom-6 left-6 right-6 z-50 bg-surface/90 backdrop-blur-2xl border border-outline-variant rounded-2xl px-4 py-3 flex justify-around items-center shadow-xl">
+      <nav className="md:hidden fixed bottom-4 sm:bottom-6 left-4 sm:left-6 right-4 sm:left-6 z-40 bg-surface/90 backdrop-blur-2xl border border-outline-variant rounded-3xl px-2 py-2 flex justify-around items-center shadow-2xl">
         {navItems.map((item) => (
           <Link
             key={item.path}
             to={item.path}
             className={cn(
-              "flex flex-col items-center gap-1 transition-all duration-300 px-4 py-2 rounded-xl",
+              "flex flex-col items-center gap-1 transition-all duration-300 px-3 sm:px-4 py-2 rounded-2xl",
               location.pathname === item.path 
-                ? "text-primary-container bg-primary-container/10" 
+                ? "text-primary-container bg-primary-container/10 scale-105" 
                 : "text-on-surface-variant hover:text-primary-container"
             )}
           >
-            <item.icon size={20} />
-            <span className="text-[10px] font-bold uppercase tracking-wider">{item.name}</span>
+            <item.icon size={22} />
+            <span className="text-[9px] font-black uppercase tracking-tighter">{item.name}</span>
           </Link>
         ))}
-        <button 
-          className="flex flex-col items-center gap-1 text-on-surface-variant"
-          onClick={() => auth.signOut()}
-        >
-          <User size={20} />
-          <span className="text-[10px] font-bold uppercase tracking-wider">Profil</span>
-        </button>
       </nav>
       {selectedCompany && <Copilot />}
       {selectedCompany && <WeatherWidget />}
