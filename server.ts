@@ -35,19 +35,19 @@ app.post("/api/insights", async (req, res) => {
     }
 
     const prompt = `
-      As a senior financial analyst for "Reveno", analyze this enterprise revenue data for the entity "${companyName || 'Unknown Entity'}" and provide institutional-grade insights.
+      En tant qu'analyste financier senior pour "Reveno", analysez ces données de revenus d'entreprise pour l'entité "${companyName || 'Entité Inconnue'}" et fournissez des informations de niveau institutionnel.
       
-      Current Data:
-      Revenues: ${JSON.stringify(revenues)}
-      Goals: ${JSON.stringify(goals)}
+      Données Actuelles:
+      Revenus: ${JSON.stringify(revenues)}
+      Objectifs: ${JSON.stringify(goals)}
 
-      Focus on:
-      1. Growth velocity and trends.
-      2. Performance against goals.
-      3. Anomaly detection (churn risk, spikes, market shifts).
-      4. Strategic recommendations (pricing, headcount, expansion).
+      Concentrez-vous sur:
+      1. La vélocité de croissance et les tendances.
+      2. La performance par rapport aux objectifs.
+      3. La détection d'anomalies (risque de désabonnement, pics, changements de marché).
+      4. Recommandations stratégiques (tarification, effectifs, expansion).
 
-      Keep the tone sophisticated, authoritative, and data-driven.
+      Gardez un ton sophistiqué, faisant autorité et axé sur les données. RÉPONDEZ EXCLUSIVEMENT EN FRANÇAIS.
     `;
 
     const response = await ai.models.generateContent({
@@ -102,6 +102,43 @@ app.post("/api/insights", async (req, res) => {
   } catch (error: any) {
     console.error("Gemini Insight Error:", error);
     res.status(500).json({ error: "Failed to generate insights" });
+  }
+});
+
+app.post("/api/copilot", async (req, res) => {
+  try {
+    const { message, history, context } = req.body;
+
+    const chat = ai.chats.create({
+      model: "gemini-3-flash-preview",
+      config: {
+        systemInstruction: `
+          Vous êtes l'Assistant Financier Senior de Reveno. Votre rôle est d'aider l'utilisateur à comprendre ses données de trésorerie.
+          
+          Contexte Actuel:
+          Entité: ${context.companyName || 'Inconnue'}
+          Données de revenus: ${JSON.stringify(context.revenues)}
+          Objectifs: ${JSON.stringify(context.goals)}
+          
+          Directives:
+          1. Soyez précis, analytique et professionnel.
+          2. Utilisez les données fournies pour répondre aux questions spécifiques.
+          3. Suggérez des actions basées sur les tendances observées.
+          4. Répondez toujours en FRANÇAIS.
+          5. Si vous ne connaissez pas la réponse ou si les données sont insuffisantes, soyez honnête.
+        `,
+      },
+      history: history.map((h: any) => ({
+        role: h.role,
+        parts: [{ text: h.content }],
+      })),
+    });
+
+    const result = await chat.sendMessage({ message });
+    res.json({ content: result.text });
+  } catch (error: any) {
+    console.error("Copilot Error:", error);
+    res.status(500).json({ error: "L'assistant a rencontré une erreur technique." });
   }
 });
 

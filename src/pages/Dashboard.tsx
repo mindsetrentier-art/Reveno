@@ -6,21 +6,19 @@ import { motion } from 'motion/react';
 import { useCompany } from '../context/CompanyContext';
 
 export default function Dashboard() {
-  const { selectedCompany } = useCompany();
-  const { data: revenues, loading: revLoading } = useRevenueData(selectedCompany?.id);
-  const { goal, loading: goalLoading } = useGoalData(selectedCompany?.id);
+  const { selectedCompany, revenues, goal, loading: contextLoading } = useCompany();
 
   const handleExport = () => {
     if (revenues.length === 0) return;
     
     const exportData = revenues.map(r => ({
-      Month: r.month,
-      Revenue: r.revenue,
-      Status: 'Confirmed',
-      Entity: selectedCompany?.name || 'Reveno'
+      'Mois': r.month,
+      'Revenu': r.revenue,
+      'Statut': 'Confirmé',
+      'Entité': selectedCompany?.name || 'Reveno'
     }));
     
-    downloadCSV(exportData, `${selectedCompany?.name || 'Reveno'}_Treasury_Snapshot.csv`);
+    downloadCSV(exportData, `${selectedCompany?.name || 'Reveno'}_Apercu_Tresorerie.csv`);
   };
 
   const totalRevenue = revenues.reduce((acc, curr) => acc + curr.revenue, 0);
@@ -34,7 +32,7 @@ export default function Dashboard() {
     original: r
   }));
 
-  if (revLoading || goalLoading) {
+  if (contextLoading) {
     return <div className="animate-pulse space-y-8">
       <div className="h-32 bg-surface rounded-3xl"></div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -49,8 +47,8 @@ export default function Dashboard() {
     <div className="space-y-8">
       {/* Welcome Section */}
       <section>
-        <p className="text-secondary font-bold text-xs uppercase tracking-[0.2em] mb-2">Institutional Analytics</p>
-        <h1 className="font-serif font-medium text-4xl text-on-surface">Revenue Performance</h1>
+        <p className="text-secondary font-bold text-xs uppercase tracking-[0.2em] mb-2">Analyses Institutionnelles</p>
+        <h1 className="font-display font-bold text-4xl text-on-surface">Performance des Revenus</h1>
       </section>
 
       {/* Main Stats Grid */}
@@ -64,10 +62,10 @@ export default function Dashboard() {
           <div className="absolute inset-0 dot-grid opacity-10 pointer-events-none"></div>
           <div className="flex justify-between items-start mb-8 relative z-10">
             <div>
-              <h3 className="font-serif font-medium text-2xl">Monthly Flow</h3>
-              <p className="text-on-surface-variant text-sm serif italic">Revenue trends over the last 6 cycles</p>
+              <h3 className="font-display font-bold text-2xl">Flux Mensuel</h3>
+              <p className="text-on-surface-variant text-sm font-sans opacity-70">Tendances des revenus sur les 6 derniers cycles</p>
             </div>
-            <div className="p-2 bg-[#F5F5F0] rounded-xl text-primary-container">
+            <div className="p-2 bg-primary-container/10 rounded-xl text-primary-container">
               <TrendingUp size={20} />
             </div>
           </div>
@@ -75,18 +73,18 @@ export default function Dashboard() {
           <div className="flex-grow relative z-10">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(90, 90, 64, 0.1)" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-outline-variant)" />
                 <XAxis 
                   dataKey="name" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: '#7E7E74', fontSize: 10, fontWeight: 600 }}
+                  tick={{ fill: 'var(--color-on-surface-variant)', fontSize: 10, fontWeight: 600 }}
                   dy={10}
                 />
                 <YAxis hide />
                 <Tooltip 
-                  cursor={{ fill: 'rgba(90, 90, 64, 0.05)' }}
-                  contentStyle={{ backgroundColor: '#F5F5F0', border: '1px solid rgba(90, 90, 64, 0.1)', borderRadius: '16px', fontFamily: 'Inter' }}
+                  cursor={{ fill: 'rgba(15, 23, 42, 0.05)' }}
+                  contentStyle={{ backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-outline-variant)', borderRadius: '16px', fontFamily: 'Inter' }}
                 />
                 <Bar 
                   dataKey="revenue" 
@@ -96,7 +94,7 @@ export default function Dashboard() {
                   {chartData.map((entry, index) => (
                     <Cell 
                       key={`cell-${index}`} 
-                      fill={entry.revenue >= (goal?.monthlyGoal || 0) ? '#5A5A40' : '#A3AD9F'} 
+                      fill={entry.revenue >= (goal?.monthlyGoal || 0) ? 'var(--color-primary-container)' : 'var(--color-secondary)'} 
                     />
                   ))}
                 </Bar>
@@ -112,13 +110,13 @@ export default function Dashboard() {
             className="bg-white p-8 rounded-[32px] shadow-sm border border-outline-variant space-y-4"
           >
             <div className="flex justify-between items-center text-on-surface-variant">
-              <span className="text-[10px] font-bold uppercase tracking-widest">Average Monthly</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest">Moyenne Mensuelle</span>
               <CreditCard size={18} />
             </div>
-            <h4 className="font-serif text-4xl font-medium">{formatCurrency(avgMonthly)}</h4>
+            <h4 className="font-display text-4xl font-bold tracking-tight">{formatCurrency(avgMonthly)}</h4>
             <div className="flex items-center gap-2 text-primary-container text-xs font-bold uppercase tracking-widest">
-              <span className="bg-[#E8E8E0] px-2 py-0.5 rounded-full">+12.4%</span>
-              <span className="opacity-60">vs last fiscal year</span>
+              <span className="bg-primary-container/5 px-2 py-0.5 rounded-full">+12.4%</span>
+              <span className="opacity-60">vs dernier exercice</span>
             </div>
           </motion.div>
 
@@ -127,20 +125,20 @@ export default function Dashboard() {
             className="bg-white p-8 rounded-[32px] shadow-sm border border-outline-variant space-y-4"
           >
             <div className="flex justify-between items-center text-on-surface-variant">
-              <span className="text-[10px] font-bold uppercase tracking-widest">Global Goal</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest">Objectif Global</span>
               <Target size={18} className="text-secondary" />
             </div>
-            <h4 className="font-serif text-4xl font-medium">{goal ? formatCurrency(goal.monthlyGoal * 12) : '$0'}</h4>
+            <h4 className="font-display text-4xl font-bold tracking-tight">{goal ? formatCurrency(goal.monthlyGoal * 12) : '0 €'}</h4>
             <div className="space-y-4 pt-2">
-              <div className="w-full bg-[#F5F5F0] h-1.5 rounded-full overflow-hidden">
+              <div className="w-full bg-background border border-outline-variant h-1.5 rounded-full overflow-hidden">
                 <motion.div 
                    initial={{ width: 0 }}
                    animate={{ width: `${Math.min(progressToGoal, 100)}%` }}
-                   className="h-full bg-[#5A5A40]"
+                   className="h-full bg-secondary"
                 />
               </div>
               <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
-                <span className="text-on-surface-variant">Monthly Progress</span>
+                <span className="text-on-surface-variant">Progression Mensuelle</span>
                 <span className="text-primary-container">{progressToGoal.toFixed(1)}%</span>
               </div>
             </div>
@@ -151,29 +149,29 @@ export default function Dashboard() {
       {/* Recent Transactions List */}
       <section className="bg-white rounded-[32px] shadow-sm border border-outline-variant overflow-hidden">
          <div className="p-8 border-b border-outline-variant flex justify-between items-center">
-            <h3 className="font-serif font-medium text-xl">Recent Treasury Events</h3>
+            <h3 className="font-display font-bold text-xl">Événements Récents de Trésorerie</h3>
             <button 
               onClick={handleExport}
-              className="text-primary-container text-xs font-bold uppercase tracking-widest hover:underline"
+              className="text-secondary text-xs font-bold uppercase tracking-widest hover:underline"
             >
-              Auditor View (Export CSV)
+              Vue Auditeur (Export CSV)
             </button>
          </div>
          <div className="divide-y divide-outline-variant">
             {revenues.slice(0, 4).map((rev) => (
-              <div key={rev.id} className="p-6 px-8 flex items-center justify-between hover:bg-[#F9F9F6] transition-colors">
+              <div key={rev.id} className="p-6 px-8 flex items-center justify-between hover:bg-background transition-colors">
                 <div className="flex items-center gap-6">
-                  <div className="w-12 h-12 rounded-2xl bg-[#F5F5F0] flex items-center justify-center border border-outline-variant text-[#5A5A40]">
-                    <span className="text-xs font-bold serif font-serif italic">{rev.month.substring(0, 1)}</span>
+                  <div className="w-12 h-12 rounded-2xl bg-background flex items-center justify-center border border-outline-variant text-primary-container">
+                    <span className="text-xs font-bold font-display">{rev.month.substring(0, 1)}</span>
                   </div>
                   <div>
-                    <h5 className="font-medium serif font-serif italic text-lg leading-none">{rev.month} Release</h5>
-                    <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-widest mt-1">Institutional Settlement</p>
+                    <h5 className="font-bold font-display text-lg leading-none">Revenu de {rev.month}</h5>
+                    <p className="text-[10px] text-on-surface-variant uppercase font-bold tracking-widest mt-1">Règlement Institutionnel</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-serif font-medium text-xl">{formatCurrency(rev.revenue)}</p>
-                  <p className="text-[10px] uppercase font-bold text-primary-container tracking-widest">Verified</p>
+                  <p className="font-display font-bold text-xl">{formatCurrency(rev.revenue)}</p>
+                  <p className="text-[10px] uppercase font-bold text-secondary tracking-widest">Vérifié</p>
                 </div>
               </div>
             ))}

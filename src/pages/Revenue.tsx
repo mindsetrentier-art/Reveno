@@ -8,8 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useCompany } from '../context/CompanyContext';
 
 export default function Revenue() {
-  const { selectedCompany } = useCompany();
-  const { data: revenues, loading } = useRevenueData(selectedCompany?.id);
+  const { selectedCompany, revenues, loading } = useCompany();
   const [isAdding, setIsAdding] = useState(false);
   const [newMonth, setNewMonth] = useState('');
   const [newAmount, setNewAmount] = useState('');
@@ -18,13 +17,13 @@ export default function Revenue() {
     if (revenues.length === 0) return;
     
     const exportData = revenues.map(r => ({
-      Month: r.month,
-      Revenue: r.revenue,
-      Status: 'Settled',
-      Entity: selectedCompany?.name || 'Unknown'
+      'Mois': r.month,
+      'Revenu': r.revenue,
+      'Statut': 'Réglé',
+      'Entité': selectedCompany?.name || 'Inconnue'
     }));
     
-    downloadCSV(exportData, `${selectedCompany?.name || 'Reveno'}_Revenue_Export.csv`);
+    downloadCSV(exportData, `${selectedCompany?.name || 'Reveno'}_Export_Revenus.csv`);
   };
 
   const handleAdd = async () => {
@@ -58,8 +57,8 @@ export default function Revenue() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <p className="text-secondary font-bold text-xs uppercase tracking-[0.2em] mb-2">Treasury Management</p>
-          <h1 className="font-serif font-medium text-4xl text-on-surface leading-none italic">Revenue tracking</h1>
+          <p className="text-secondary font-bold text-xs uppercase tracking-[0.2em] mb-2">Gestion de Trésorerie</p>
+          <h1 className="font-display font-bold text-4xl text-on-surface leading-tight">Suivi des revenus</h1>
         </div>
         <div className="flex gap-3">
           <button className="p-3 bg-white border border-outline-variant rounded-xl text-on-surface-variant hover:text-primary-container transition-colors shadow-sm">
@@ -68,7 +67,7 @@ export default function Revenue() {
           <button 
             onClick={handleExport}
             className="p-3 bg-white border border-outline-variant rounded-xl text-on-surface-variant hover:text-primary-container transition-colors shadow-sm"
-            title="Export CSV"
+            title="Exporter CSV"
           >
             <Download size={18} />
           </button>
@@ -77,7 +76,7 @@ export default function Revenue() {
             className="flex items-center gap-2 bg-primary-container text-white font-bold px-6 py-3 rounded-xl shadow-lg shadow-primary-container/20 hover:brightness-110 active:scale-95 transition-all text-sm uppercase tracking-widest"
           >
             <Plus size={18} />
-            <span>Add Record</span>
+            <span>Ajouter un Enregistrement</span>
           </button>
         </div>
       </div>
@@ -92,36 +91,36 @@ export default function Revenue() {
             className="bg-white p-8 rounded-[32px] border border-outline-variant shadow-sm grid grid-cols-1 md:grid-cols-3 gap-6 items-end"
           >
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.25em]">Reporting Period</label>
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.25em]">Période de Rapport</label>
               <input 
                 type="text" 
-                placeholder="e.g. October"
+                placeholder="ex: Octobre"
                 value={newMonth}
                 onChange={(e) => setNewMonth(e.target.value)}
-                className="w-full bg-[#F5F5F0] border border-outline-variant rounded-xl px-4 py-3 focus:outline-none focus:border-primary-container transition-colors font-serif italic"
+                className="w-full bg-background border border-outline-variant rounded-xl px-4 py-3 focus:outline-none focus:border-primary-container transition-colors font-sans"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.25em]">Revenue Amount</label>
+              <label className="text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.25em]">Montant du Revenu</label>
               <input 
                 type="number" 
                 placeholder="0.00"
                 value={newAmount}
                 onChange={(e) => setNewAmount(e.target.value)}
-                className="w-full bg-[#F5F5F0] border border-outline-variant rounded-xl px-4 py-3 focus:outline-none focus:border-primary-container transition-colors"
+                className="w-full bg-background border border-outline-variant rounded-xl px-4 py-3 focus:outline-none focus:border-primary-container transition-colors"
               />
             </div>
             <div className="flex gap-3">
               <button 
                 onClick={handleAdd}
-                className="flex-grow flex items-center justify-center gap-2 bg-[#5A5A40] text-white font-bold py-3 rounded-xl uppercase text-xs tracking-widest hover:brightness-110 transition-all"
+                className="flex-grow flex items-center justify-center gap-2 bg-primary-container text-white font-bold py-3 rounded-xl uppercase text-xs tracking-widest hover:brightness-110 transition-all"
               >
                 <Check size={18} />
-                Confirm
+                Confirmer
               </button>
               <button 
                 onClick={() => setIsAdding(false)}
-                className="p-3 bg-[#F5F5F0] border border-outline-variant rounded-xl text-on-surface-variant"
+                className="p-3 bg-background border border-outline-variant rounded-xl text-on-surface-variant"
               >
                 <X size={18} />
               </button>
@@ -134,26 +133,26 @@ export default function Revenue() {
         <div className="absolute inset-0 dot-grid opacity-5 pointer-events-none"></div>
         <div className="overflow-x-auto relative z-10">
           <table className="w-full text-left">
-            <thead className="bg-[#F5F5F0]/50 border-b border-outline-variant">
+            <thead className="bg-surface border-b border-outline-variant">
               <tr>
-                <th className="px-8 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em]">Reporting Period</th>
-                <th className="px-8 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] text-right">Revenue Flow</th>
-                <th className="px-8 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] text-center">Audit Status</th>
+                <th className="px-8 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em]">Période de Rapport</th>
+                <th className="px-8 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] text-right">Flux de Revenus</th>
+                <th className="px-8 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] text-center">Statut Audit</th>
                 <th className="px-8 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant text-sm">
               {loading ? (
-                <tr><td colSpan={4} className="p-12 text-center animate-pulse serif italic text-on-surface-variant">Accessing institutional ledgers...</td></tr>
+                <tr><td colSpan={4} className="p-12 text-center animate-pulse opacity-70 text-on-surface-variant">Accès aux registres institutionnels...</td></tr>
               ) : revenues.length === 0 ? (
-                <tr><td colSpan={4} className="p-12 text-center text-on-surface-variant serif italic">Treasury empty. Initialize records to generate performance data.</td></tr>
+                <tr><td colSpan={4} className="p-12 text-center text-on-surface-variant opacity-70">Trésorerie vide. Initialisez les enregistrements pour générer des données de performance.</td></tr>
               ) : (
                 revenues.map((rev) => (
-                  <tr key={rev.id} className="hover:bg-[#F9F9F6] transition-colors group">
-                    <td className="px-8 py-6 font-serif italic text-lg font-medium">{rev.month} Release</td>
-                    <td className="px-8 py-6 text-right font-serif font-medium text-xl">{formatCurrency(rev.revenue)}</td>
+                  <tr key={rev.id} className="hover:bg-background transition-colors group">
+                    <td className="px-8 py-6 font-display text-lg font-bold">Revenu de {rev.month}</td>
+                    <td className="px-8 py-6 text-right font-display font-bold text-xl">{formatCurrency(rev.revenue)}</td>
                     <td className="px-8 py-6 text-center">
-                       <span className="px-3 py-1 bg-[#F5F5F0] text-[#5A5A40] text-[10px] font-bold uppercase rounded-full tracking-widest border border-outline-variant">Settled</span>
+                       <span className="px-3 py-1 bg-secondary/10 text-secondary text-[10px] font-bold uppercase rounded-full tracking-widest border border-secondary/20">Réglé</span>
                     </td>
                     <td className="px-8 py-6 text-right">
                        <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">

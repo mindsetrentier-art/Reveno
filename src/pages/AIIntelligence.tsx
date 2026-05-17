@@ -27,9 +27,7 @@ interface AIInsight {
 }
 
 export default function AIIntelligence() {
-  const { selectedCompany } = useCompany();
-  const { data: revenues } = useRevenueData(selectedCompany?.id);
-  const { goal } = useGoalData(selectedCompany?.id);
+  const { selectedCompany, revenues, goal } = useCompany();
   const [insights, setInsights] = useState<AIInsight | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,11 +66,11 @@ export default function AIIntelligence() {
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-secondary font-bold text-xs uppercase tracking-[0.2em]">
             <Sparkles size={14} className="fill-secondary" />
-            <span>Intelligence Module</span>
+            <span>Module d'Intelligence</span>
           </div>
-          <h1 className="font-serif font-medium text-5xl text-on-surface tracking-tight italic leading-none">AI Forecasting</h1>
-          <p className="text-on-surface-variant text-lg max-w-2xl leading-relaxed serif italic">
-            Leveraging deep-learning neural networks to predict your institutional growth trajectories with 98.4% accuracy.
+          <h1 className="font-display font-bold text-5xl text-on-surface tracking-tight leading-none">Prévisions IA</h1>
+          <p className="text-on-surface-variant text-lg max-w-2xl leading-relaxed font-sans opacity-70">
+            Utilisation de réseaux neuronaux profonds pour prédire vos trajectoires de croissance institutionnelle avec une précision de 98,4 %.
           </p>
         </div>
         <button 
@@ -81,14 +79,14 @@ export default function AIIntelligence() {
           className="flex items-center gap-2 bg-primary-container text-white font-bold px-10 py-5 rounded-2xl shadow-xl shadow-primary-container/20 hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all uppercase text-xs tracking-widest"
         >
           <RefreshCcw size={18} className={cn("transition-transform duration-1000", loading && "animate-spin")} />
-          <span>Run Re-Forecast</span>
+          <span>Relancer les Prévisions</span>
         </button>
       </section>
 
       {loading && !insights ? (
         <div className="flex flex-col items-center justify-center py-20 space-y-6">
-          <div className="w-16 h-16 border-4 border-[#A3AD9F] border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-on-surface-variant font-serif italic text-lg animate-pulse tracking-wide">Syncing Neural Nodes...</p>
+          <div className="w-16 h-16 border-4 border-secondary border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-on-surface-variant font-display font-bold text-lg animate-pulse tracking-wide">Synchronisation des nœuds neuronaux...</p>
         </div>
       ) : insights ? (
         <AnimatePresence>
@@ -100,16 +98,16 @@ export default function AIIntelligence() {
             {/* Top Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { label: 'Growth Velocity', value: insights.metrics.growthVelocity, icon: TrendingUp, color: 'text-[#5A5A40]' },
-                { label: 'Predicted ARR', value: insights.metrics.predictedARR, icon: RefreshCcw, color: 'text-primary-container' },
-                { label: 'Model Confidence', value: insights.metrics.modelConfidence, icon: Sparkles, color: 'text-[#A3AD9F]' },
+                { label: 'Vélocité de Croissance', value: insights.metrics.growthVelocity, icon: TrendingUp, color: 'text-on-background' },
+                { label: 'ARR Prédit', value: insights.metrics.predictedARR, icon: RefreshCcw, color: 'text-primary-container' },
+                { label: 'Confiance du Modèle', value: insights.metrics.modelConfidence, icon: Sparkles, color: 'text-secondary' },
               ].map((m, i) => (
                 <div key={i} className="bg-white p-10 rounded-[32px] shadow-sm border border-outline-variant space-y-4">
                   <div className="flex justify-between items-center text-on-surface-variant">
                     <span className="text-[10px] font-black uppercase tracking-[0.25em]">{m.label}</span>
                     <m.icon size={18} className={m.color} />
                   </div>
-                  <div className={cn("font-serif text-5xl font-medium italic", m.color)}>{m.value}</div>
+                  <div className={cn("font-display text-5xl font-bold tracking-tight", m.color)}>{m.value}</div>
                 </div>
               ))}
             </div>
@@ -117,19 +115,19 @@ export default function AIIntelligence() {
             {/* Anomaly Detection */}
             <section className="space-y-6">
               <div className="flex items-center gap-3">
-                <h2 className="font-serif font-medium text-3xl">Anomaly Detection Alerts</h2>
-                <span className="bg-red-500/10 text-red-600 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest">{insights.alerts.length} Critical Events</span>
+                <h2 className="font-display font-bold text-3xl">Alertes de Détection d'Anomalies</h2>
+                <span className="bg-red-500/10 text-red-600 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest">{insights.alerts.length} Événements Critiques</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {insights.alerts.map((alert, i) => (
                   <div key={i} className="bg-white border border-outline-variant p-8 rounded-[32px] shadow-sm space-y-4 hover:border-primary-container/30 transition-all group">
-                     <div className="flex items-center gap-2 text-primary-container font-bold text-[10px] uppercase tracking-widest">
+                     <div className="flex items-center gap-2 text-primary-container font-black text-[10px] uppercase tracking-widest">
                        <AlertTriangle size={14} />
                        {alert.type}
                      </div>
-                     <h3 className="font-medium font-serif italic text-xl leading-tight group-hover:text-primary-container transition-colors">{alert.title}</h3>
+                     <h3 className="font-bold font-display text-xl leading-tight group-hover:text-primary-container transition-colors">{alert.title}</h3>
                      <p className="text-sm text-on-surface-variant leading-relaxed font-light">{alert.description}</p>
-                     <button className="text-primary-container font-bold text-[10px] uppercase tracking-widest hover:underline pt-2">Full Segment Audit</button>
+                     <button className="text-secondary font-black text-[10px] uppercase tracking-widest hover:underline pt-2">Audit Complet du Segment</button>
                   </div>
                 ))}
               </div>
@@ -142,11 +140,11 @@ export default function AIIntelligence() {
                   <div className="lg:col-span-4 space-y-8">
                     <div className="flex items-center gap-2">
                        <div className="w-2 h-2 bg-[#A3AD9F] rounded-full animate-pulse"></div>
-                       <span className="text-xs uppercase tracking-[0.2em] opacity-70 font-semibold">Gemini Intelligence</span>
+                       <span className="text-xs uppercase tracking-[0.2em] opacity-70 font-semibold">Intelligence Gemini</span>
                     </div>
-                    <h2 className="font-serif font-medium text-4xl leading-tight italic">AI Recommendations Engine</h2>
+                    <h2 className="font-display font-bold text-4xl leading-tight">Moteur de Recommandations IA</h2>
                     <p className="text-white/70 leading-relaxed font-light text-lg">
-                      Strategic opportunities identified to optimize your fiscal performance based on current velocity.
+                      Opportunités stratégiques identifiées pour optimiser votre performance fiscale basée sur la vélocité actuelle.
                     </p>
                   </div>
                   <div className="lg:col-span-8 space-y-8">
@@ -156,10 +154,10 @@ export default function AIIntelligence() {
                           <TrendingUp size={24} />
                         </div>
                         <div className="space-y-3">
-                           <h4 className="font-serif font-medium text-2xl italic">{rec.title}</h4>
+                           <h4 className="font-display font-bold text-2xl">{rec.title}</h4>
                            <p className="text-white/80 leading-relaxed font-light">"{rec.details}"</p>
                            <button className="flex items-center gap-3 bg-white text-primary-container px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-surface transition-all mt-4">
-                             Simulate Impact <ArrowRight size={14} />
+                             Simuler l'Impact <ArrowRight size={14} />
                            </button>
                         </div>
                       </div>
@@ -172,13 +170,13 @@ export default function AIIntelligence() {
       ) : (
         <div className="text-center py-32 bg-white rounded-[48px] border border-outline-variant shadow-sm flex flex-col items-center gap-8 relative overflow-hidden">
            <div className="absolute inset-0 dot-grid opacity-20 pointer-events-none"></div>
-           <div className="p-8 bg-[#F5F5F0] rounded-full relative z-10">
-              <Sparkles size={64} className="text-[#A3AD9F]" />
+           <div className="p-8 bg-background rounded-full relative z-10">
+              <Sparkles size={64} className="text-secondary" />
            </div>
            <div className="space-y-4 relative z-10">
-              <h3 className="font-serif font-medium text-4xl italic">Awaiting Treasury Initialization</h3>
-              <p className="text-on-surface-variant max-w-md mx-auto serif italic text-lg leading-relaxed px-6">
-                Please populate your institutional records in the Revenue tracking module to activate the AI intelligence engine.
+              <h3 className="font-display font-bold text-4xl">En attente de l'initialisation de la trésorerie</h3>
+              <p className="text-on-surface-variant max-w-md mx-auto font-sans opacity-70 text-lg leading-relaxed px-6">
+                Veuillez remplir vos registres institutionnels dans le module de suivi des revenus pour activer le moteur d'intelligence IA.
               </p>
            </div>
         </div>

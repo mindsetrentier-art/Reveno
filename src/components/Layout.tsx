@@ -5,6 +5,8 @@ import { cn } from '../lib/utils';
 import { useCompany } from '../context/CompanyContext';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import Copilot from './Copilot';
+import WeatherWidget from './WeatherWidget';
 
 export default function Layout() {
   const location = useLocation();
@@ -14,10 +16,9 @@ export default function Layout() {
   const [newCompanyName, setNewCompanyName] = useState('');
 
   const navItems = [
-    { name: 'Home', path: '/', icon: Home },
-    { name: 'Revenue', path: '/revenue', icon: Wallet },
-    { name: 'Analytics', path: '/analytics', icon: BarChart3 },
-    { name: 'AI', path: '/ai', icon: Sparkles },
+    { name: 'Tableau de bord', path: '/', icon: Home },
+    { name: 'Revenus', path: '/revenue', icon: Wallet },
+    { name: 'IA', path: '/ai', icon: Sparkles },
   ];
 
   const handleCreateCompany = async () => {
@@ -36,7 +37,7 @@ export default function Layout() {
             <div className="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center">
                <Wallet size={18} className="text-on-primary-container" />
             </div>
-            <h1 className="font-serif text-2xl tracking-tight text-on-surface">Reveno <span className="text-secondary font-normal italic ml-1">AI</span></h1>
+            <h1 className="font-display text-2xl font-bold tracking-tight text-on-surface">Reveno <span className="text-secondary font-medium ml-1">AI</span></h1>
           </div>
 
           {/* Company Switcher */}
@@ -48,8 +49,8 @@ export default function Layout() {
               <div className="w-6 h-6 bg-[#A3AD9F]/20 rounded-md flex items-center justify-center text-[#5A5A40]">
                 <Building2 size={14} />
               </div>
-              <span className="text-sm font-medium serif italic">
-                {selectedCompany?.name || 'Create Entity'}
+              <span className="text-sm font-semibold">
+                {selectedCompany?.name || 'Créer une entité'}
               </span>
               <ChevronDown size={14} className={cn("text-on-surface-variant transition-transform", showCompanySwitch && "rotate-180")} />
             </button>
@@ -85,15 +86,15 @@ export default function Layout() {
                       <div className="px-2 space-y-2">
                         <input 
                           autoFocus
-                          placeholder="Entity Name"
+                          placeholder="Nom de l'entité"
                           className="w-full text-xs p-2 bg-surface rounded-lg outline-none border border-primary-container/30"
                           value={newCompanyName}
                           onChange={(e) => setNewCompanyName(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && handleCreateCompany()}
                         />
                         <div className="flex gap-2">
-                          <button onClick={handleCreateCompany} className="flex-1 text-[10px] bg-primary-container text-white py-1 rounded-md">Create</button>
-                          <button onClick={() => setIsCreating(false)} className="flex-1 text-[10px] bg-surface py-1 rounded-md">Cancel</button>
+                          <button onClick={handleCreateCompany} className="flex-1 text-[10px] bg-primary-container text-white py-1 rounded-md">Créer</button>
+                          <button onClick={() => setIsCreating(false)} className="flex-1 text-[10px] bg-surface py-1 rounded-md">Annuler</button>
                         </div>
                       </div>
                     ) : (
@@ -102,7 +103,7 @@ export default function Layout() {
                         className="w-full flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-primary-container hover:bg-primary-container/5 transition-colors"
                       >
                         <Plus size={14} />
-                        New Financial Entity
+                        Nouvelle entité financière
                       </button>
                     )}
                   </div>
@@ -136,11 +137,11 @@ export default function Layout() {
             <div 
               className="w-10 h-10 rounded-full border border-outline-variant overflow-hidden cursor-pointer bg-white flex items-center justify-center shadow-sm"
               onClick={() => auth.signOut()}
-              title="Sign out"
+              title="Déconnexion"
             >
               <img 
                 src={auth.currentUser?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${auth.currentUser?.email}`} 
-                alt="Profile" 
+                alt="Profil" 
                 className="w-full h-full object-cover"
               />
             </div>
@@ -158,15 +159,15 @@ export default function Layout() {
                 <Building2 size={48} />
              </div>
              <div className="space-y-4">
-                <h2 className="font-serif text-3xl italic">No Financial Entity Detected</h2>
+                <h2 className="font-display text-3xl font-bold">Aucune entité financière détectée</h2>
                 <p className="text-on-surface-variant max-w-md mx-auto">
-                  Reveno requires at least one financial entity to manage treasury. Create your first company or entity to begin audit.
+                  Reveno nécessite au moins une entité financière pour gérer la trésorerie. Créez votre première entreprise ou entité pour commencer l'audit.
                 </p>
                 <button 
                   onClick={() => setShowCompanySwitch(true)}
                   className="bg-primary-container text-white px-8 py-4 rounded-2xl font-bold hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-primary-container/20 uppercase text-xs tracking-widest"
                 >
-                  Configure Treasury Entity
+                  Configurer une entité
                 </button>
              </div>
           </div>
@@ -195,9 +196,11 @@ export default function Layout() {
           onClick={() => auth.signOut()}
         >
           <User size={20} />
-          <span className="text-[10px] font-bold uppercase tracking-wider">Profile</span>
+          <span className="text-[10px] font-bold uppercase tracking-wider">Profil</span>
         </button>
       </nav>
+      {selectedCompany && <Copilot />}
+      {selectedCompany && <WeatherWidget />}
     </div>
   );
 }
