@@ -53,6 +53,33 @@ export default function DetailedEntry() {
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  // Draft Sync
+  useEffect(() => {
+    if (!editingId) {
+      const saved = localStorage.getItem(`draft_entries_${selectedCompany?.id}`);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setAmounts(parsed.amounts || {});
+          if (parsed.month) setSelectedMonth(parsed.month);
+          if (parsed.year) setSelectedYear(parsed.year);
+        } catch (e) {
+          console.error("Draft restore error", e);
+        }
+      }
+    }
+  }, [selectedCompany, editingId]);
+
+  useEffect(() => {
+    if (!editingId && selectedCompany) {
+      localStorage.setItem(`draft_entries_${selectedCompany.id}`, JSON.stringify({
+        amounts,
+        month: selectedMonth,
+        year: selectedYear
+      }));
+    }
+  }, [amounts, selectedMonth, selectedYear, selectedCompany, editingId]);
+
   useEffect(() => {
     if (!auth.currentUser || !selectedCompany) return;
 
@@ -152,6 +179,11 @@ export default function DetailedEntry() {
       }
       
       setAmounts({});
+      try {
+        localStorage.removeItem(`draft_entries_${selectedCompany?.id}`);
+      } catch (e) {
+        console.error("Draft clear error", e);
+      }
       alert(editingId ? 'Saisie mise à jour avec succès.' : 'Saisie enregistrée avec succès.');
     } catch (error) {
       console.error('Save error:', error);
@@ -290,9 +322,45 @@ export default function DetailedEntry() {
         {/* History */}
         <div className="lg:col-span-5 space-y-6">
           <div className="bg-white rounded-[40px] border border-outline-variant shadow-sm overflow-hidden h-fit">
-            <div className="p-8 border-b border-outline-variant flex items-center gap-3">
-              <History className="text-secondary" size={24} />
-              <h2 className="font-display font-bold text-xl">Derniers Registres</h2>
+            <div className="p-8 border-b border-outline-variant space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <History className="text-secondary" size={24} />
+                  <h2 className="font-display font-bold text-xl">Derniers Registres</h2>
+                </div>
+                <div className="flex flex-col items-end">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-1">Total Période</p>
+                  <p className="font-display font-bold text-lg text-primary-container">
+                    {formatCurrency(entries.reduce((acc, curr) => acc + curr.total, 0))}
+                  </p>
+                </div>
+              </div>
+
+              {/* History Bar Visualization */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                  <span>Répartition Volume</span>
+                  <span>{entries.length} Saisies</span>
+                </div>
+                <div className="h-3 w-full bg-background rounded-full overflow-hidden flex border border-outline-variant">
+                  {CATEGORIES.map(cat => {
+                    const totalForCat = entries.reduce((acc, entry) => acc + (entry.breakdown[cat.id] || 0), 0);
+                    const grandTotal = entries.reduce((acc, entry) => acc + entry.total, 0);
+                    if (grandTotal === 0) return null;
+                    const width = (totalForCat / grandTotal) * 100;
+                    if (width < 1) return null;
+                    return (
+                      <motion.div 
+                        key={cat.id}
+                        initial={{ width: 0 }}
+                        animate={{ width: `${width}%` }}
+                        className={cn("h-full", cat.color)}
+                        title={`${cat.label}: ${formatCurrency(totalForCat)}`}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
             </div>
             
             <div className="divide-y divide-outline-variant max-h-[800px] overflow-y-auto">

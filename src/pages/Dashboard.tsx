@@ -71,13 +71,30 @@ export default function Dashboard() {
           className="md:col-span-8 bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-sm border border-outline-variant flex flex-col min-h-[350px] sm:min-h-[400px] relative overflow-hidden"
         >
           <div className="absolute inset-0 dot-grid opacity-10 pointer-events-none"></div>
-          <div className="flex justify-between items-start mb-8 relative z-10">
+          <div className="flex flex-col sm:flex-row justify-between items-start mb-8 relative z-10 gap-4">
             <div>
               <h3 className="font-display font-bold text-2xl">Flux Mensuel</h3>
               <p className="text-on-surface-variant text-sm font-sans opacity-70">Tendances des revenus sur les 6 derniers cycles</p>
             </div>
-            <div className="p-2 bg-primary-container/10 rounded-xl text-primary-container">
-              <TrendingUp size={20} />
+            
+            {/* Mini History Bar (Activity) */}
+            <div className="w-full sm:w-auto flex flex-col items-end gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant/60">Activité Récente</span>
+              <div className="flex gap-1 h-8 items-end">
+                {revenues.slice(0, 12).reverse().map((r, i) => {
+                  const max = Math.max(...revenues.map(rev => rev.revenue), 1);
+                  const height = (r.revenue / max) * 100;
+                  return (
+                    <motion.div 
+                      key={r.id}
+                      initial={{ height: 0 }}
+                      animate={{ height: `${height}%` }}
+                      className="w-2.5 bg-primary-container/20 rounded-t-sm hover:bg-primary-container transition-colors"
+                      title={`${r.month}: ${formatCurrency(r.revenue)}`}
+                    />
+                  );
+                })}
+              </div>
             </div>
           </div>
           

@@ -1,15 +1,21 @@
+import { useState } from 'react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { auth } from '../lib/firebase';
-import { Wallet, TrendingUp, ShieldCheck } from 'lucide-react';
+import { Wallet, TrendingUp, ShieldCheck, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Login() {
+  const [isLoading, setIsLoading] = useState(false);
+
   const handleGoogleLogin = async () => {
+    setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
     } catch (error) {
       console.error('Login Error:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -68,14 +74,21 @@ export default function Login() {
             <div className="space-y-4">
               <button 
                 onClick={handleGoogleLogin}
-                className="w-full flex items-center justify-center gap-4 bg-background text-on-background font-bold py-4 rounded-2xl hover:bg-surface transition-all active:scale-[0.98] border border-outline-variant shadow-sm"
+                disabled={isLoading}
+                className="w-full flex items-center justify-center gap-4 bg-background text-on-background font-bold py-4 rounded-2xl hover:bg-surface transition-all active:scale-[0.98] border border-outline-variant shadow-sm disabled:opacity-50"
               >
-                <img 
-                  src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
-                  alt="Google" 
-                  className="w-6 h-6"
-                />
-                Continuer avec Google
+                {isLoading ? (
+                  <Loader2 className="animate-spin text-primary-container" size={24} />
+                ) : (
+                  <>
+                    <img 
+                      src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
+                      alt="Google" 
+                      className="w-6 h-6"
+                    />
+                    Continuer avec Google
+                  </>
+                )}
               </button>
               
               <div className="relative flex items-center py-4">

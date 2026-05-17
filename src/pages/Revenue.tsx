@@ -1,19 +1,38 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRevenueData } from '../hooks/useFinance';
 import { formatCurrency, downloadCSV } from '../lib/utils';
 import { db, auth } from '../lib/firebase';
-import { collection, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { Plus, Trash2, Edit2, X, Check, Filter, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { encryptNumeric } from '../lib/encryption';
 import { useCompany } from '../context/CompanyContext';
 import { backupData } from '../lib/backup';
+import { cn } from '../lib/utils';
 
 export default function Revenue() {
   const { selectedCompany, revenues, loading } = useCompany();
   const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [newMonth, setNewMonth] = useState('');
   const [newAmount, setNewAmount] = useState('');
+
+  // Draft System
+  useEffect(() => {
+    if (!isAdding && !editingId) {
+      const savedMonth = localStorage.getItem('revenue_draft_month');
+      const savedAmount = localStorage.getItem('revenue_draft_amount');
+      if (savedMonth) setNewMonth(savedMonth);
+      if (savedAmount) setNewAmount(savedAmount);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAdding || editingId) {
+      localStorage.setItem('revenue_draft_month', newMonth);
+      localStorage.setItem('revenue_draft_amount', newAmount);
+    }
+  }, [newMonth, newAmount, isAdding, editingId]);
 
   const handleExport = () => {
     if (revenues.length === 0) return;
@@ -47,27 +66,44 @@ export default function Revenue() {
 
     try {
       const numericRevenue = revenueValidation.numericValue;
-      const revenueData = {
+      const revenueData: any = {
         month: newMonth,
         revenue: encryptNumeric(numericRevenue),
         userId: auth.currentUser.uid,
         companyId: selectedCompany.id,
-        createdAt: serverTimestamp(),
         isEncrypted: true
       };
 
-      await addDoc(collection(db, 'revenues'), revenueData);
-      
-      // Automatic Backup System (uses its own encryption too)
-      await backupData('REVENUE_CAPTURE', { ...revenueData, revenue: numericRevenue });
+      if (editingId) {
+        await updateDoc(doc(db, 'revenues', editingId), revenueData);
+        await backupData('REVENUE_UPDATE', { ...revenueData, id: editingId, revenue: numericRevenue });
+        setEditingId(null);
+      } else {
+        revenueData.createdAt = serverTimestamp();
+        await addDoc(collection(db, 'revenues'), revenueData);
+        await backupData('REVENUE_CAPTURE', { ...revenueData, revenue: numericRevenue });
+      }
 
       setIsAdding(false);
       setNewMonth('');
       setNewAmount('');
+      localStorage.removeItem('revenue_draft_month');
+      localStorage.removeItem('revenue_draft_amount');
     } catch (err) {
       console.error(err);
     }
   };
+
+  const handleEdit = (rev: any) => {
+    setEditingId(rev.id);
+    setNewMonth(rev.month);
+    setAmountStr(rev.revenue.toString());
+    setIsAdding(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Helper to sync amount as string
+  const setAmountStr = (val: string) => setNewAmount(val);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this institutional record?')) return;
@@ -140,13 +176,23 @@ export default function Revenue() {
             <div className="flex gap-3">
               <button 
                 onClick={handleAdd}
-                className="flex-grow flex items-center justify-center gap-2 bg-primary-container text-white font-bold py-3 rounded-xl uppercase text-xs tracking-widest hover:brightness-110 transition-all"
+                className={cn(
+                  "flex-grow flex items-center justify-center gap-2 text-white font-bold py-3 rounded-xl uppercase text-xs tracking-widest hover:brightness-110 transition-all",
+                  editingId ? "bg-secondary" : "bg-primary-container"
+                )}
               >
                 <Check size={18} />
-                Confirmer
+                {editingId ? 'Mettre à jour' : 'Confirmer'}
               </button>
               <button 
-                onClick={() => setIsAdding(false)}
+                onClick={() => {
+                  setIsAdding(false);
+                  setEditingId(null);
+                  setNewMonth('');
+                  setNewAmount('');
+                  localStorage.removeItem('revenue_draft_month');
+                  localStorage.removeItem('revenue_draft_amount');
+                }}
                 className="p-3 bg-background border border-outline-variant rounded-xl text-on-surface-variant"
               >
                 <X size={18} />
@@ -173,12 +219,20 @@ export default function Revenue() {
                     <h5 className="font-bold font-display text-lg">Revenu de {rev.month}</h5>
                     <span className="inline-block mt-1 px-2 py-0.5 bg-secondary/10 text-secondary text-[9px] font-black uppercase rounded-md tracking-widest border border-secondary/15">Réglé</span>
                   </div>
-                  <button 
-                    onClick={() => handleDelete(rev.id)}
-                    className="p-2 text-red-500 bg-red-50 rounded-xl"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => handleEdit(rev)}
+                      className="p-2 text-primary-container bg-primary-container/10 rounded-xl"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(rev.id)}
+                      className="p-2 text-red-500 bg-red-50 rounded-xl"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
                 <div className="bg-surface p-4 rounded-2xl flex justify-between items-center">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Montant Total</p>
@@ -215,7 +269,12 @@ export default function Revenue() {
                     </td>
                     <td className="px-8 py-6 text-right">
                        <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button className="p-2 text-on-surface-variant hover:text-primary-container transition-colors"><Edit2 size={16} /></button>
+                          <button 
+                            onClick={() => handleEdit(rev)}
+                            className="p-2 text-on-surface-variant hover:text-primary-container transition-colors"
+                          >
+                            <Edit2 size={16} />
+                          </button>
                           <button 
                             onClick={() => handleDelete(rev.id)}
                             className="p-2 text-on-surface-variant hover:text-red-500 transition-colors"
