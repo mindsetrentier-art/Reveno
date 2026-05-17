@@ -1,0 +1,58 @@
+{
+  "entities": {
+    "company": {
+      "title": "Company",
+      "description": "Financial entities or companies managed by the user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "userId", "createdAt"]
+    },
+    "revenue": {
+      "title": "Revenue",
+      "description": "Monthly revenue records for the enterprise.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the revenue record." },
+        "month": { "type": "string", "description": "Month of the revenue (e.g., 'January')." },
+        "revenue": { "type": "number", "description": "The revenue amount in USD." },
+        "userId": { "type": "string", "description": "The ID of the user who owns this record." },
+        "companyId": { "type": "string", "description": "The ID of the company this record belongs to." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the record was created." }
+      },
+      "required": ["month", "revenue", "userId", "companyId", "createdAt"]
+    },
+    "goal": {
+      "title": "Goal",
+      "description": "Revenue targets and goals.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the goal." },
+        "monthlyGoal": { "type": "number", "description": "The target monthly revenue." },
+        "yearlyGoal": { "type": "number", "description": "The target yearly revenue." },
+        "userId": { "type": "string", "description": "The ID of the user who owns these goals." },
+        "companyId": { "type": "string", "description": "The ID of the company these goals belong to." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the goal was created." }
+      },
+      "required": ["monthlyGoal", "yearlyGoal", "userId", "companyId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/companies/{companyId}": {
+      "schema": "company",
+      "description": "Collection of companies."
+    },
+    "/revenues/{revenueId}": {
+      "schema": "revenue",
+      "description": "Collection of monthly revenue data."
+    },
+    "/goals/{goalId}": {
+      "schema": "goal",
+      "description": "User-specific revenue goals."
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Reveno Intelligence",
+  "description": "Institutional-grade treasury management for the modern enterprise.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

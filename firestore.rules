@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isEmailVerified() { return request.auth.token.email_verified == true; }
+
+    // --- Validation Helpers ---
+    function isValidCompany(data) {
+      return data.keys().hasAll(['name', 'userId', 'createdAt']) &&
+             data.keys().size() == 3 &&
+             data.name is string && data.name.size() > 0 &&
+             data.userId == request.auth.uid &&
+             data.createdAt == request.time;
+    }
+
+    function isValidRevenue(data) {
+      return data.keys().hasAll(['month', 'revenue', 'userId', 'companyId', 'createdAt']) &&
+             data.keys().size() == 5 &&
+             data.month is string && data.month.size() <= 50 &&
+             data.revenue is number && data.revenue >= 0 &&
+             data.userId == request.auth.uid &&
+             data.companyId is string &&
+             data.createdAt == request.time;
+    }
+
+    function isValidGoal(data) {
+      return data.keys().hasAll(['monthlyGoal', 'yearlyGoal', 'userId', 'companyId', 'createdAt']) &&
+             data.keys().size() == 5 &&
+             data.monthlyGoal is number && data.monthlyGoal >= 0 &&
+             data.yearlyGoal is number && data.yearlyGoal >= 0 &&
+             data.userId == request.auth.uid &&
+             data.companyId is string &&
+             data.createdAt == request.time;
+    }
+
+    // --- Collections ---
+    match /companies/{companyId} {
+      allow get: if isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isEmailVerified() && isValidId(companyId) && isValidCompany(incoming());
+      allow update: if isSignedIn() && isEmailVerified() && 
+                    isValidCompany(incoming()) && 
+                    isOwner(existing().userId) &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().userId == existing().userId;
+      allow delete: if isOwner(existing().userId);
+    }
+
+    match /revenues/{revenueId} {
+      allow get: if isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isEmailVerified() && isValidId(revenueId) && isValidRevenue(incoming());
+      allow update: if isSignedIn() && isEmailVerified() && 
+                    isValidRevenue(incoming()) && 
+                    isOwner(existing().userId) &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().userId == existing().userId;
+      allow delete: if isOwner(existing().userId);
+    }
+
+    match /goals/{goalId} {
+      allow get: if isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isEmailVerified() && isValidId(goalId) && isValidGoal(incoming());
+      allow update: if isSignedIn() && isEmailVerified() && 
+                    isValidGoal(incoming()) && 
+                    isOwner(existing().userId) &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().userId == existing().userId;
+      allow delete: if isOwner(existing().userId);
+    }
+  }
+}
