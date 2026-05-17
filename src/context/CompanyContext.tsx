@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { backupData } from '../lib/backup';
+import { decryptNumeric } from '../lib/encryption';
 
 export interface Company {
   id: string;
@@ -35,6 +37,8 @@ interface CompanyContextType {
   goal: Goal | null;
   loading: boolean;
   createCompany: (name: string) => Promise<void>;
+  updateCompany: (id: string, name: string) => Promise<void>;
+  deleteCompany: (id: string) => Promise<void>;
 }
 
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
@@ -102,7 +106,14 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       orderBy('createdAt', 'desc')
     );
     const unsubRev = onSnapshot(qRev, (snapshot) => {
-      setRevenues(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Revenue[]);
+      setRevenues(snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          revenue: data.isEncrypted ? decryptNumeric(data.revenue) : data.revenue
+        };
+      }) as Revenue[]);
     });
 
     // Fetch Goals
@@ -113,7 +124,13 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     );
     const unsubGoal = onSnapshot(qGoal, (snapshot) => {
       if (!snapshot.empty) {
-        setGoal({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Goal);
+        const data = snapshot.docs[0].data();
+        setGoal({
+          id: snapshot.docs[0].id,
+          ...data,
+          monthlyGoal: data.isEncrypted ? decryptNumeric(data.monthlyGoal) : data.monthlyGoal,
+          yearlyGoal: data.isEncrypted ? decryptNumeric(data.yearlyGoal) : data.yearlyGoal
+        } as Goal);
       } else {
         setGoal(null);
       }
@@ -133,15 +150,54 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
   const createCompany = async (name: string) => {
     if (!auth.currentUser) return;
-    await addDoc(collection(db, 'companies'), {
+    const companyData = {
       name,
       userId: auth.currentUser.uid,
       createdAt: serverTimestamp(),
-    });
+    };
+
+    await addDoc(collection(db, 'companies'), companyData);
+    
+    // Automatic Backup System
+    await backupData('COMPANY_CAPTURE', companyData);
+  };
+
+  const updateCompany = async (id: string, name: string) => {
+    if (!auth.currentUser) return;
+    const { doc, updateDoc } = await import('firebase/firestore');
+    const companyRef = doc(db, 'companies', id);
+    await updateDoc(companyRef, { name });
+    
+    // Automatic Backup System
+    await backupData('COMPANY_UPDATE', { id, name });
+  };
+
+  const deleteCompany = async (id: string) => {
+    if (!auth.currentUser) return;
+    const { doc, deleteDoc } = await import('firebase/firestore');
+    await deleteDoc(doc(db, 'companies', id));
+
+    if (selectedCompany?.id === id) {
+      setSelectedCompany(null);
+      localStorage.removeItem('selectedCompanyId');
+    }
+    
+    // Automatic Backup System
+    await backupData('COMPANY_DELETE', { id });
   };
 
   return (
-    <CompanyContext.Provider value={{ companies, selectedCompany, setSelectedCompany, revenues, goal, loading, createCompany }}>
+    <CompanyContext.Provider value={{ 
+      companies, 
+      selectedCompany, 
+      setSelectedCompany, 
+      revenues, 
+      goal, 
+      loading, 
+      createCompany,
+      updateCompany,
+      deleteCompany
+    }}>
       {children}
     </CompanyContext.Provider>
   );

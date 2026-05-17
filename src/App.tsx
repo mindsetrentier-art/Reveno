@@ -11,6 +11,8 @@ import Revenue from './pages/Revenue';
 import AIIntelligence from './pages/AIIntelligence';
 import Layout from './components/Layout';
 
+import DetailedEntry from './pages/DetailedEntry';
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,6 +42,7 @@ export default function App() {
           <Route element={user ? <Layout /> : <Navigate to="/login" />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/revenue" element={<Revenue />} />
+            <Route path="/saisie" element={<DetailedEntry />} />
             <Route path="/ai" element={<AIIntelligence />} />
           </Route>
 

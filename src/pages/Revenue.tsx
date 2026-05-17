@@ -5,7 +5,9 @@ import { db, auth } from '../lib/firebase';
 import { collection, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { Plus, Trash2, Edit2, X, Check, Filter, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { encryptNumeric } from '../lib/encryption';
 import { useCompany } from '../context/CompanyContext';
+import { backupData } from '../lib/backup';
 
 export default function Revenue() {
   const { selectedCompany, revenues, loading } = useCompany();
@@ -29,13 +31,21 @@ export default function Revenue() {
   const handleAdd = async () => {
     if (!newMonth || !newAmount || !auth.currentUser || !selectedCompany) return;
     try {
-      await addDoc(collection(db, 'revenues'), {
+      const numericRevenue = parseFloat(newAmount);
+      const revenueData = {
         month: newMonth,
-        revenue: parseFloat(newAmount),
+        revenue: encryptNumeric(numericRevenue),
         userId: auth.currentUser.uid,
         companyId: selectedCompany.id,
         createdAt: serverTimestamp(),
-      });
+        isEncrypted: true
+      };
+
+      await addDoc(collection(db, 'revenues'), revenueData);
+      
+      // Automatic Backup System (uses its own encryption too)
+      await backupData('REVENUE_CAPTURE', { ...revenueData, revenue: numericRevenue });
+
       setIsAdding(false);
       setNewMonth('');
       setNewAmount('');

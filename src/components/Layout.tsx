@@ -1,23 +1,26 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { Home, BarChart3, Sparkles, User, Bell, Wallet, Building2, ChevronDown, Plus } from 'lucide-react';
+import React, { useState } from 'react';
+import { Home, BarChart3, Sparkles, User, Bell, Wallet, Building2, ChevronDown, Plus, Edit2, Trash2, Check, X } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { cn } from '../lib/utils';
 import { useCompany } from '../context/CompanyContext';
-import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Copilot from './Copilot';
 import WeatherWidget from './WeatherWidget';
 
 export default function Layout() {
   const location = useLocation();
-  const { companies, selectedCompany, setSelectedCompany, createCompany } = useCompany();
+  const { companies, selectedCompany, setSelectedCompany, createCompany, updateCompany, deleteCompany } = useCompany();
   const [showCompanySwitch, setShowCompanySwitch] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [newCompanyName, setNewCompanyName] = useState('');
+  const [editName, setEditName] = useState('');
 
   const navItems = [
     { name: 'Tableau de bord', path: '/', icon: Home },
     { name: 'Revenus', path: '/revenue', icon: Wallet },
+    { name: 'Saisie', path: '/saisie', icon: BarChart3 },
     { name: 'IA', path: '/ai', icon: Sparkles },
   ];
 
@@ -26,6 +29,20 @@ export default function Layout() {
     await createCompany(newCompanyName);
     setNewCompanyName('');
     setIsCreating(false);
+  };
+
+  const handleUpdate = async (id: string) => {
+    if (!editName.trim()) return;
+    await updateCompany(id, editName);
+    setEditingId(null);
+    setEditName('');
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (confirm('Voulez-vous vraiment supprimer cette entité ? Toutes les données associées seront inaccessibles.')) {
+      await deleteCompany(id);
+    }
   };
 
   return (
@@ -49,7 +66,7 @@ export default function Layout() {
               <div className="w-6 h-6 bg-[#A3AD9F]/20 rounded-md flex items-center justify-center text-[#5A5A40]">
                 <Building2 size={14} />
               </div>
-              <span className="text-sm font-semibold">
+              <span className="text-sm font-semibold max-w-[120px] truncate">
                 {selectedCompany?.name || 'Créer une entité'}
               </span>
               <ChevronDown size={14} className={cn("text-on-surface-variant transition-transform", showCompanySwitch && "rotate-180")} />
@@ -61,49 +78,104 @@ export default function Layout() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="absolute top-full left-6 mt-2 w-64 bg-white border border-outline-variant rounded-2xl shadow-xl p-2 z-50"
+                  className="absolute top-full left-6 mt-2 w-72 bg-white border border-outline-variant rounded-2xl shadow-xl p-2 z-50"
                 >
-                  <div className="max-h-48 overflow-y-auto">
+                  <div className="max-h-64 overflow-y-auto space-y-1">
                     {companies.map((c) => (
-                      <button
-                        key={c.id}
-                        onClick={() => {
-                          setSelectedCompany(c);
-                          setShowCompanySwitch(false);
-                        }}
-                        className={cn(
-                          "w-full text-left px-4 py-2 rounded-xl text-sm transition-colors mb-1",
-                          selectedCompany?.id === c.id ? "bg-primary-container text-white" : "hover:bg-surface text-on-surface-variant"
+                      <div key={c.id} className="relative group">
+                        {editingId === c.id ? (
+                          <div className="flex items-center gap-2 p-1 bg-surface rounded-xl">
+                            <input 
+                              autoFocus
+                              className="flex-grow text-xs bg-transparent outline-none px-2 py-1"
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleUpdate(c.id)}
+                            />
+                            <button onClick={() => handleUpdate(c.id)} className="p-1 hover:bg-green-100 text-green-600 rounded-lg">
+                              <Check size={14} />
+                            </button>
+                            <button onClick={() => setEditingId(null)} className="p-1 hover:bg-red-100 text-red-600 rounded-lg">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center">
+                            <button
+                              onClick={() => {
+                                setSelectedCompany(c);
+                                setShowCompanySwitch(false);
+                              }}
+                              className={cn(
+                                "flex-grow text-left px-4 py-2.5 rounded-xl text-sm transition-all",
+                                selectedCompany?.id === c.id ? "bg-primary-container text-white" : "hover:bg-surface text-on-surface-variant"
+                              )}
+                            >
+                              {c.name}
+                            </button>
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingId(c.id);
+                                  setEditName(c.name);
+                                }}
+                                className="p-1.5 hover:bg-surface-variant rounded-lg text-primary-container"
+                              >
+                                <Edit2 size={12} />
+                              </button>
+                              <button 
+                                onClick={(e) => handleDelete(e, c.id)}
+                                className="p-1.5 hover:bg-red-50 rounded-lg text-red-500"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
                         )}
-                      >
-                        {c.name}
-                      </button>
+                      </div>
                     ))}
                   </div>
                   
                   <div className="border-t border-outline-variant mt-2 pt-2">
                     {isCreating ? (
-                      <div className="px-2 space-y-2">
-                        <input 
-                          autoFocus
-                          placeholder="Nom de l'entité"
-                          className="w-full text-xs p-2 bg-surface rounded-lg outline-none border border-primary-container/30"
-                          value={newCompanyName}
-                          onChange={(e) => setNewCompanyName(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleCreateCompany()}
-                        />
+                      <div className="p-2 bg-surface rounded-2xl space-y-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase font-bold text-on-surface-variant tracking-widest pl-1">Nouvelle Entité</label>
+                          <input 
+                            autoFocus
+                            placeholder="Ex: Reveno Holding"
+                            className="w-full text-sm p-3 bg-white border border-outline-variant rounded-xl outline-none focus:border-primary-container transition-all"
+                            value={newCompanyName}
+                            onChange={(e) => setNewCompanyName(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleCreateCompany()}
+                          />
+                        </div>
                         <div className="flex gap-2">
-                          <button onClick={handleCreateCompany} className="flex-1 text-[10px] bg-primary-container text-white py-1 rounded-md">Créer</button>
-                          <button onClick={() => setIsCreating(false)} className="flex-1 text-[10px] bg-surface py-1 rounded-md">Annuler</button>
+                          <button 
+                            onClick={handleCreateCompany} 
+                            disabled={!newCompanyName.trim()}
+                            className="flex-grow flex items-center justify-center gap-2 text-xs bg-primary-container text-white py-2.5 rounded-xl font-bold shadow-lg shadow-primary-container/20 disabled:opacity-50"
+                          >
+                            <Check size={14} /> Valider
+                          </button>
+                          <button 
+                            onClick={() => setIsCreating(false)} 
+                            className="p-2.5 bg-white border border-outline-variant rounded-xl text-on-surface-variant hover:bg-surface transition-colors"
+                          >
+                            <X size={14} />
+                          </button>
                         </div>
                       </div>
                     ) : (
                       <button 
                         onClick={() => setIsCreating(true)}
-                        className="w-full flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-primary-container hover:bg-primary-container/5 transition-colors"
+                        className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-primary-container hover:bg-primary-container/5 transition-colors group"
                       >
-                        <Plus size={14} />
-                        Nouvelle entité financière
+                        <div className="w-5 h-5 rounded-md bg-primary-container/10 flex items-center justify-center group-hover:bg-primary-container group-hover:text-white transition-all">
+                          <Plus size={12} />
+                        </div>
+                        Ajouter une entité
                       </button>
                     )}
                   </div>

@@ -80,7 +80,11 @@ export default function Copilot() {
                 </div>
                 <div>
                   <h3 className="font-display font-bold leading-none">Copilote Financier</h3>
-                  <p className="text-[10px] uppercase font-bold tracking-widest opacity-60 mt-1">Intelligence Reveno Active</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-[10px] uppercase font-bold tracking-widest opacity-60">Intelligence Reveno Active</p>
+                    <span className="w-1 h-1 bg-green-500 rounded-full animate-pulse"></span>
+                    <p className="text-[8px] uppercase font-bold tracking-tighter opacity-40">Backup Automatique</p>
+                  </div>
                 </div>
               </div>
               <button 
