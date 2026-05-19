@@ -12,6 +12,7 @@ import AIIntelligence from './pages/AIIntelligence';
 import DetailedEntry from './pages/DetailedEntry';
 import Backups from './pages/Backups';
 import Reports from './pages/Reports';
+import Budget from './pages/Budget';
 import Layout from './components/Layout';
 
 export default function App() {
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/ai" element={<AIIntelligence />} />
             <Route path="/backups" element={<Backups />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/budget" element={<Budget />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" />} />

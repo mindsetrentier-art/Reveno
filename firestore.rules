@@ -100,5 +100,12 @@ service cloud.firestore {
       allow update: if isOwner(existing().userId) && incoming().userId == existing().userId;
       allow delete: if isOwner(existing().userId);
     }
+
+    match /budgets/{budgetId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && (incoming().userId == request.auth.uid);
+      allow update: if isOwner(existing().userId) && incoming().userId == existing().userId;
+      allow delete: if isOwner(existing().userId);
+    }
   }
 }

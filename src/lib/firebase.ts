@@ -35,6 +35,7 @@ export const initAuth = (
 export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
   try {
     isSigningIn = true;
+    console.log('Starting Google Sign-In for domain:', window.location.hostname);
     const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
@@ -44,7 +45,24 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     cachedAccessToken = credential.accessToken;
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
-    console.error('Sign in error:', error);
+    console.error('Sign in error details:', {
+      message: error.message,
+      code: error.code,
+      domain: window.location.hostname
+    });
+    
+    if (error.code === 'auth/popup-blocked') {
+      alert('Le pop-up a été bloqué par votre navigateur. Veuillez autoriser les fenêtres surgissantes pour ce site.');
+    } else if (error.code === 'auth/popup-closed-by-user') {
+      // User closed the popup, no need to alert, just log it
+      console.log('User closed the login popup.');
+      return null;
+    } else if (error.code === 'auth/unauthorized-domain') {
+      const url = `https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/settings`;
+      alert(`Domaine non autorisé !\n\nVous devez ajouter "${window.location.hostname}" dans votre console Firebase :\n1. Allez sur : ${url}\n2. Onglet "Domaines Autorisés"\n3. Ajoutez ce domaine.`);
+    } else {
+      alert('Erreur lors de la connexion. Si vous voyez une page blanche :\n1. Vérifiez vos "Domaines Autorisés" dans la console Firebase.\n2. Essayez d\'ouvrir l\'application dans un nouvel onglet (bouton "Open in a new window" en haut à droite).');
+    }
     throw error;
   } finally {
     isSigningIn = false;

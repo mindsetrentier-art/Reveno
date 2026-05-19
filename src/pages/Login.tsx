@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { googleSignIn } from '../lib/firebase';
 import { Wallet, TrendingUp, ShieldCheck, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -9,9 +8,8 @@ export default function Login() {
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
-    const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      await googleSignIn();
     } catch (error) {
       console.error('Login Error:', error);
     } finally {
@@ -75,7 +73,7 @@ export default function Login() {
               <button 
                 onClick={handleGoogleLogin}
                 disabled={isLoading}
-                className="w-full flex items-center justify-center gap-4 bg-background text-on-background font-bold py-4 rounded-2xl hover:bg-surface transition-all active:scale-[0.98] border border-outline-variant shadow-sm disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-4 bg-white text-[#0F172A] font-bold py-4 rounded-2xl hover:border-[#CBD5E1] transition-all active:scale-[0.98] border border-[#E2E8F0] shadow-sm disabled:opacity-50"
               >
                 {isLoading ? (
                   <Loader2 className="animate-spin text-primary-container" size={24} />

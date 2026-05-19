@@ -19,11 +19,14 @@ interface BackupRecord {
 }
 
 export default function Backups() {
-  const { selectedCompany, revenues, detailedEntries } = useCompany();
+  const { selectedCompany, revenues, detailedEntries, transactions, budgets, goal } = useCompany();
   const [backups, setBackups] = useState<BackupRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [isBackingUp, setIsBackingUp] = useState(false);
+  const [backupStatus, setBackupStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [restoreStep, setRestoreStep] = useState<string>('');
+  const [restoreStatus, setRestoreStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -46,6 +49,7 @@ export default function Backups() {
   const handleManualBackup = async () => {
     if (!auth.currentUser || !selectedCompany) return;
     setIsBackingUp(true);
+    setBackupStatus('idle');
 
     try {
       const snapData = {
@@ -53,6 +57,9 @@ export default function Backups() {
         companyName: selectedCompany.name,
         revenues,
         detailedEntries,
+        transactions,
+        budgets,
+        goal,
         snapshotDate: new Date().toISOString()
       };
 
@@ -67,10 +74,12 @@ export default function Backups() {
         encrypted: true
       });
 
-      alert('Sauvegarde manuelle réussie.');
+      setBackupStatus('success');
+      setTimeout(() => setBackupStatus('idle'), 3000);
     } catch (error) {
       console.error('Backup error:', error);
-      alert('Erreur lors de la sauvegarde.');
+      setBackupStatus('error');
+      setTimeout(() => setBackupStatus('idle'), 5000);
     } finally {
       setIsBackingUp(false);
     }
@@ -80,36 +89,37 @@ export default function Backups() {
     if (!auth.currentUser || !selectedCompany) return;
     
     const confirmRestore = confirm(
-      "ATTENTION: La restauration remplacera vos données actuelles par celles de la sauvegarde. Cette action est irréversible. Voulez-vous continuer ?"
+      "ATTENTION: La restauration remplacera vos données actuelles (Revenus, Dépenses, Transactions, Budgets, Objectifs) par celles de la sauvegarde pour cette entreprise. Cette action est irréversible. Voulez-vous continuer ?"
     );
     
     if (!confirmRestore) return;
 
     setRestoringId(backup.id);
+    setRestoreStatus('idle');
+    setRestoreStep('Initialisation...');
 
     try {
+      setRestoreStep('Déchiffrement des données...');
       const data = decryptData<any>(backup.payload);
       if (!data) throw new Error('Impossible de décrypter la sauvegarde.');
 
       const batch = writeBatch(db);
 
-      // 1. Clear existing revenues for this company
-      const revSnap = await getDocs(query(
-        collection(db, 'revenues'), 
-        where('userId', '==', auth.currentUser.uid), 
-        where('companyId', '==', selectedCompany.id)
-      ));
-      revSnap.docs.forEach(d => batch.delete(d.ref));
+      // 1. Clear existing data for this company
+      setRestoreStep('Nettoyage des données actuelles...');
+      
+      const collectionsToClear = ['revenues', 'detailed_entries', 'transactions', 'budgets', 'goals'];
+      for (const collName of collectionsToClear) {
+        const snap = await getDocs(query(
+          collection(db, collName), 
+          where('userId', '==', auth.currentUser.uid), 
+          where('companyId', '==', selectedCompany.id)
+        ));
+        snap.docs.forEach(d => batch.delete(d.ref));
+      }
 
-      // 2. Clear existing detailed entries
-      const detSnap = await getDocs(query(
-        collection(db, 'detailed_entries'), 
-        where('userId', '==', auth.currentUser.uid), 
-        where('companyId', '==', selectedCompany.id)
-      ));
-      detSnap.docs.forEach(d => batch.delete(d.ref));
-
-      // 3. Add restored revenues
+      // 2. Add restored revenues
+      setRestoreStep('Restauration des revenus...');
       if (data.revenues && Array.isArray(data.revenues)) {
         data.revenues.forEach((rev: any) => {
           const { id, ...cleanRev } = rev;
@@ -125,7 +135,8 @@ export default function Backups() {
         });
       }
 
-      // 4. Add restored detailed entries
+      // 3. Add restored detailed entries
+      setRestoreStep('Restauration des dépenses détaillées...');
       if (data.detailedEntries && Array.isArray(data.detailedEntries)) {
         data.detailedEntries.forEach((entry: any) => {
           const { id, date, ...cleanEntry } = entry;
@@ -140,7 +151,7 @@ export default function Backups() {
             breakdown: encryptedBreakdown,
             total: encryptNumeric(cleanEntry.total),
             userId: auth.currentUser!.uid,
-            date: serverTimestamp(), // reset date to restore time
+            date: serverTimestamp(),
             isEncrypted: true
           };
           
@@ -149,13 +160,75 @@ export default function Backups() {
         });
       }
 
+      // 4. Add restored transactions
+      setRestoreStep('Restauration des transactions...');
+      if (data.transactions && Array.isArray(data.transactions)) {
+        data.transactions.forEach((trans: any) => {
+          const { id, date, createdAt, ...cleanTrans } = trans;
+          const restoredTrans = {
+            ...cleanTrans,
+            amount: encryptNumeric(cleanTrans.amount || 0),
+            status: cleanTrans.status || 'pending',
+            date: date instanceof Date ? date : (date?.toDate ? date.toDate() : new Date(date)),
+            userId: auth.currentUser!.uid,
+            createdAt: serverTimestamp(),
+            isEncrypted: true
+          };
+          const docRef = doc(collection(db, 'transactions'));
+          batch.set(docRef, restoredTrans);
+        });
+      }
+
+      // 5. Add restored budgets
+      setRestoreStep('Restauration des budgets...');
+      if (data.budgets && Array.isArray(data.budgets)) {
+        data.budgets.forEach((budget: any) => {
+          const { id, createdAt, updatedAt, ...cleanBudget } = budget;
+          const restoredBudget = {
+            ...cleanBudget,
+            targetRevenue: encryptNumeric(cleanBudget.targetRevenue || 0),
+            expenseLimit: encryptNumeric(cleanBudget.expenseLimit || 0),
+            userId: auth.currentUser!.uid,
+            updatedAt: serverTimestamp(),
+            isEncrypted: true
+          };
+          const docRef = doc(collection(db, 'budgets'));
+          batch.set(docRef, restoredBudget);
+        });
+      }
+
+      // 6. Add restored goal
+      setRestoreStep('Restauration des objectifs...');
+      if (data.goal) {
+        const { id, updatedAt, ...cleanGoal } = data.goal;
+        const restoredGoal = {
+          ...cleanGoal,
+          monthlyGoal: encryptNumeric(cleanGoal.monthlyGoal || 0),
+          yearlyGoal: encryptNumeric(cleanGoal.yearlyGoal || 0),
+          userId: auth.currentUser!.uid,
+          updatedAt: serverTimestamp(),
+          isEncrypted: true
+        };
+        const docRef = doc(collection(db, 'goals'));
+        batch.set(docRef, restoredGoal);
+      }
+
+      setRestoreStep('Finalisation de la transaction...');
       await batch.commit();
-      alert('Restauration terminée avec succès.');
+      setRestoreStatus('success');
+      setRestoreStep('Restauration réussie !');
+      setTimeout(() => {
+        setRestoreStatus('idle');
+        setRestoringId(null);
+      }, 3000);
     } catch (error) {
       console.error('Restore error:', error);
-      alert('Erreur lors de la restauration.');
-    } finally {
-      setRestoringId(null);
+      setRestoreStatus('error');
+      setRestoreStep('Échec de la restauration.');
+      setTimeout(() => {
+        setRestoreStatus('idle');
+        setRestoringId(null);
+      }, 5000);
     }
   };
 
@@ -189,16 +262,45 @@ export default function Backups() {
         <button 
           onClick={handleManualBackup}
           disabled={isBackingUp}
-          className="flex items-center gap-3 bg-primary-container text-white px-8 py-4 rounded-2xl font-bold hover:brightness-110 active:scale-95 transition-all shadow-xl shadow-primary-container/20 disabled:opacity-50"
+          className={cn(
+            "flex items-center gap-3 px-8 py-4 rounded-2xl font-bold transition-all shadow-xl disabled:opacity-50",
+            backupStatus === 'success' ? "bg-emerald-500 text-white shadow-emerald-500/20" :
+            backupStatus === 'error' ? "bg-red-500 text-white shadow-red-500/20" :
+            "bg-primary-container text-white shadow-primary-container/20 hover:brightness-110 active:scale-95"
+          )}
         >
           {isBackingUp ? (
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : backupStatus === 'success' ? (
+            <CheckCircle2 size={20} />
+          ) : backupStatus === 'error' ? (
+            <AlertTriangle size={20} />
           ) : (
             <Download size={20} />
           )}
-          <span>Nouvelle Sauvegarde</span>
+          <span>
+            {isBackingUp ? 'Sauvegarde en cours...' : 
+             backupStatus === 'success' ? 'Sauvegardé !' : 
+             backupStatus === 'error' ? 'Échec' : 'Nouvelle Sauvegarde'}
+          </span>
         </button>
       </div>
+
+      <AnimatePresence>
+        {backupStatus !== 'idle' && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className={cn(
+              "p-4 rounded-2xl font-bold text-xs uppercase tracking-widest text-center",
+              backupStatus === 'success' ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-red-50 text-red-600 border border-red-100"
+            )}
+          >
+            {backupStatus === 'success' ? 'La sauvegarde a été archivée avec succès dans votre coffre-fort numérique.' : 'Une erreur est survenue lors de la sauvegarde. Veuillez réessayer.'}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Info Card */}
       <div className="bg-primary-container/[0.03] border border-primary-container/10 p-6 rounded-[32px] flex items-start gap-4">
@@ -274,31 +376,55 @@ export default function Backups() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <button 
-                      onClick={() => handleRestore(backup)}
-                      disabled={!!restoringId}
-                      className={cn(
-                        "flex-grow sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all",
-                        restoringId === backup.id 
-                          ? "bg-primary-container/10 text-primary-container" 
-                          : "bg-surface border border-outline-variant text-on-surface-variant hover:text-primary-container hover:bg-white shadow-sm"
-                      )}
-                    >
-                      {restoringId === backup.id ? (
-                        <div className="w-4 h-4 border-2 border-primary-container/30 border-t-primary-container rounded-full animate-spin" />
-                      ) : (
-                        <RotateCcw size={16} />
-                      )}
-                      <span>Restaurer</span>
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteBackup(backup.id)}
-                      className="p-3 text-on-surface-variant hover:text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+                  <div className="flex flex-col items-end gap-2 w-full sm:w-auto">
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button 
+                          onClick={() => handleRestore(backup)}
+                          disabled={!!restoringId}
+                          className={cn(
+                            "flex-grow sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all",
+                            restoringId === backup.id 
+                              ? (restoreStatus === 'success' ? "bg-emerald-500 text-white" : 
+                                 restoreStatus === 'error' ? "bg-red-500 text-white" :
+                                 "bg-primary-container/10 text-primary-container")
+                              : "bg-surface border border-outline-variant text-on-surface-variant hover:text-primary-container hover:bg-white shadow-sm"
+                          )}
+                        >
+                          {restoringId === backup.id ? (
+                            restoreStatus === 'success' ? <CheckCircle2 size={16} /> :
+                            restoreStatus === 'error' ? <AlertTriangle size={16} /> :
+                            <div className="w-4 h-4 border-2 border-primary-container/30 border-t-primary-container rounded-full animate-spin" />
+                          ) : (
+                            <RotateCcw size={16} />
+                          )}
+                          <span>
+                            {restoringId === backup.id ? 
+                             (restoreStatus === 'success' ? 'Restauration réussie' : 
+                              restoreStatus === 'error' ? 'Échec' : 'Restauration...') : 
+                             'Restaurer'}
+                          </span>
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteBackup(backup.id)}
+                          className="p-3 text-on-surface-variant hover:text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                      
+                      <AnimatePresence>
+                        {restoringId === backup.id && restoreStep && (
+                          <motion.div 
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="w-full text-[10px] font-bold uppercase tracking-wider text-primary-container text-right overflow-hidden flex items-center justify-end gap-2"
+                          >
+                            <span className="animate-pulse">{restoreStep}</span>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                 </div>
                 
                 {backup.payload && (

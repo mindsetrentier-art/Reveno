@@ -39,6 +39,23 @@
         "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the goal was created." }
       },
       "required": ["monthlyGoal", "yearlyGoal", "userId", "companyId", "createdAt"]
+    },
+    "budget": {
+      "title": "Budget",
+      "description": "Monthly revenue targets and expense limits.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "month": { "type": "string" },
+        "year": { "type": "number" },
+        "targetRevenue": { "type": "number" },
+        "expenseLimit": { "type": "number" },
+        "userId": { "type": "string" },
+        "companyId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["month", "year", "targetRevenue", "expenseLimit", "userId", "companyId"]
     }
   },
   "firestore": {
@@ -53,6 +70,10 @@
     "/goals/{goalId}": {
       "schema": "goal",
       "description": "User-specific revenue goals."
+    },
+    "/budgets/{budgetId}": {
+      "schema": "budget",
+      "description": "Collection of monthly budget targets."
     }
   }
 }

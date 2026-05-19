@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, deleteDoc, doc, updateDoc, writeBatch, getDocs } from 'firebase/firestore';
 import { formatCurrency } from '../lib/utils';
@@ -26,7 +26,7 @@ interface DetailedEntryData {
 }
 
 export default function DetailedEntry() {
-  const { selectedCompany, detailedEntries: entries, loading: contextLoading } = useCompany();
+  const { selectedCompany, detailedEntries: entries, transactions, loading: contextLoading } = useCompany();
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [selectedMonth, setSelectedMonth] = useState(MONTHS[new Date().getMonth()]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -36,6 +36,7 @@ export default function DetailedEntry() {
 
   // Transaction Entity States
   const [transName, setTransName] = useState('');
+  const [transAmount, setTransAmount] = useState('');
   const [transType, setTransType] = useState<'income' | 'expense'>('expense');
   const [transDate, setTransDate] = useState(new Date().toISOString().split('T')[0]);
   const [isCreatingTrans, setIsCreatingTrans] = useState(false);
@@ -65,6 +66,10 @@ export default function DetailedEntry() {
         filterCategories.some(catId => entry.breakdown[catId] !== undefined);
 
       return matchesSearch && matchesMonth && matchesYear && matchesCategories;
+    }).sort((a, b) => {
+      const dateA = a.date instanceof Date ? a.date.getTime() : (a.date?.toDate ? a.date.toDate().getTime() : 0);
+      const dateB = b.date instanceof Date ? b.date.getTime() : (b.date?.toDate ? b.date.toDate().getTime() : 0);
+      return dateB - dateA;
     });
   }, [entries, searchQuery, filterMonth, filterYear, filterCategories]);
 
@@ -276,8 +281,18 @@ export default function DetailedEntry() {
 
   const handleCreateTransaction = async () => {
     if (!auth.currentUser || !selectedCompany) return;
-    if (!transName.trim()) {
-      alert('Veuillez saisir un nom pour la transaction.');
+    
+    const { validateStringInput, validateNumericInput } = await import('../lib/validation');
+    
+    const nameValidation = validateStringInput(transName, 3, 50);
+    if (!nameValidation.isValid) {
+      alert(`Nom: ${nameValidation.error}`);
+      return;
+    }
+
+    const amountValidation = validateNumericInput(transAmount);
+    if (!amountValidation.isValid) {
+      alert(`Montant: ${amountValidation.error}`);
       return;
     }
 
@@ -286,16 +301,20 @@ export default function DetailedEntry() {
       const transData = {
         name: transName,
         type: transType,
+        amount: encryptNumeric(amountValidation.numericValue),
+        status: 'pending',
         date: new Date(transDate),
         userId: auth.currentUser.uid,
         companyId: selectedCompany.id,
+        isEncrypted: true,
         createdAt: serverTimestamp()
       };
 
       await addDoc(collection(db, 'transactions'), transData);
-      await backupData('TRANSACTION_CREATE', transData);
+      await backupData('TRANSACTION_CREATE', { ...transData, amount: amountValidation.numericValue });
       
       setTransName('');
+      setTransAmount('');
       setTransType('expense');
       setTransDate(new Date().toISOString().split('T')[0]);
       
@@ -305,6 +324,47 @@ export default function DetailedEntry() {
       alert('Une erreur est survenue lors de la création de la transaction.');
     } finally {
       setIsCreatingTrans(false);
+    }
+  };
+
+  const toggleTransactionStatus = async (transaction: any) => {
+    try {
+      const newStatus = transaction.status === 'validated' ? 'pending' : 'validated';
+      await updateDoc(doc(db, 'transactions', transaction.id), {
+        status: newStatus,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Toggle status error:', error);
+    }
+  };
+
+  const handleValidateAllPending = async () => {
+    if (!auth.currentUser || !selectedCompany || !transactions) return;
+    
+    const pendingTransactions = transactions.filter(t => t.status === 'pending');
+    if (pendingTransactions.length === 0) {
+      alert('Aucune transaction en attente à valider.');
+      return;
+    }
+
+    if (!confirm(`Voulez-vous valider les ${pendingTransactions.length} transactions en attente ?`)) return;
+
+    try {
+      const batch = writeBatch(db);
+      pendingTransactions.forEach(t => {
+        const transRef = doc(db, 'transactions', t.id);
+        batch.update(transRef, {
+          status: 'validated',
+          updatedAt: serverTimestamp()
+        });
+      });
+
+      await batch.commit();
+      alert(`${pendingTransactions.length} transactions ont été validées.`);
+    } catch (error) {
+      console.error('Validate all error:', error);
+      alert('Une erreur est survenue lors de la validation massive.');
     }
   };
 
@@ -438,6 +498,17 @@ export default function DetailedEntry() {
                   />
                 </div>
 
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Montant (€)</label>
+                  <input 
+                    type="number"
+                    placeholder="0.00"
+                    value={transAmount}
+                    onChange={(e) => setTransAmount(e.target.value)}
+                    className="w-full bg-background border border-outline-variant rounded-xl px-4 py-3 focus:outline-none focus:border-primary-container transition-all text-sm font-medium"
+                  />
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Type</label>
@@ -488,6 +559,76 @@ export default function DetailedEntry() {
               </button>
             </div>
           </div>
+
+          {/* Transactions List */}
+          <AnimatePresence>
+            {transactions && transactions.length > 0 && (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-[40px] border border-outline-variant shadow-sm overflow-hidden"
+              >
+                <div className="p-8 border-b border-outline-variant bg-surface/30 flex items-center justify-between">
+                  <h2 className="font-display font-bold text-xl">Dernières Transactions</h2>
+                  {transactions.some(t => t.status === 'pending') && (
+                    <button 
+                      onClick={handleValidateAllPending}
+                      className="flex items-center gap-2 px-4 py-1.5 bg-primary-container/10 text-primary-container border border-primary-container/20 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-primary-container hover:text-white transition-all shadow-sm"
+                    >
+                      <CheckCircle2 size={12} />
+                      Valider tout
+                    </button>
+                  )}
+                </div>
+                <div className="divide-y divide-outline-variant max-h-[400px] overflow-y-auto">
+                  {transactions.map(t => (
+                    <div key={t.id} className="p-6 flex items-center justify-between hover:bg-background transition-colors group/item">
+                      <div className="flex items-center gap-4">
+                        <button 
+                          onClick={() => toggleTransactionStatus(t)}
+                          className={cn(
+                            "w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold transition-all",
+                            t.status === 'validated' 
+                              ? (t.type === 'income' ? "bg-green-500 shadow-lg shadow-green-500/20" : "bg-red-500 shadow-lg shadow-red-500/20")
+                              : "bg-outline-variant"
+                          )}
+                          title={t.status === 'validated' ? "Marquer comme en attente" : "Valider l'entité"}
+                        >
+                          {t.status === 'validated' ? <CheckCircle2 size={16} /> : <div className="w-2 h-2 rounded-full bg-white/50" />}
+                        </button>
+                        <div>
+                          <div className="flex items-center gap-2">
+                             <p className="font-bold text-sm">{t.name}</p>
+                             <span className={cn(
+                               "text-[8px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded",
+                               t.status === 'validated' ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
+                             )}>
+                               {t.status === 'validated' ? 'Validé' : 'Attente'}
+                             </span>
+                          </div>
+                          <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">
+                            {t.date?.toDate ? t.date.toDate().toLocaleDateString('fr-FR') : new Date(t.date).toLocaleDateString('fr-FR')} • {formatCurrency(t.amount)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                        <button 
+                          onClick={async () => {
+                            if (confirm('Supprimer cette transaction ?')) {
+                              await deleteDoc(doc(db, 'transactions', t.id));
+                            }
+                          }}
+                          className="p-3 text-on-surface-variant hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* History */}
           <div className="bg-white rounded-[40px] border border-outline-variant shadow-sm overflow-hidden h-fit">
@@ -642,7 +783,7 @@ export default function DetailedEntry() {
               </div>
             </div>
             
-            <div className="divide-y divide-outline-variant max-h-[800px] overflow-y-auto">
+            <div className="max-h-[800px] overflow-y-auto">
               {loading ? (
                 <div className="p-12 text-center animate-pulse text-on-surface-variant font-bold uppercase text-[10px] tracking-widest">
                   Chargement de l'historique...
@@ -655,60 +796,88 @@ export default function DetailedEntry() {
                   <p className="text-on-surface-variant text-sm font-medium">Aucun résultat trouvé.</p>
                 </div>
               ) : (
-                filteredEntries.map((entry) => (
-                  <div key={entry.id} className="p-6 hover:bg-background transition-colors group">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-primary-container bg-primary-container/10 px-2 py-0.5 rounded-md">
-                            {entry.month} {entry.year}
-                          </p>
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                            {entry.date?.toDate().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                          </p>
-                        </div>
-                        <p className="font-display font-bold text-xl">{formatCurrency(entry.total)}</p>
-                      </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        <button 
-                          onClick={() => syncToCalendar(entry)}
-                          disabled={!!isSyncing}
-                          className={cn(
-                            "p-2 rounded-xl transition-colors",
-                            isSyncing === entry.id ? "text-primary-container opacity-50" : "text-primary-container hover:bg-primary-container/10"
-                          )}
-                          title="Synchroniser Google Calendar"
-                        >
-                          <CalendarSync size={16} className={isSyncing === entry.id ? "animate-spin" : ""} />
-                        </button>
-                        <button 
-                          onClick={() => handleEdit(entry)}
-                          className="p-2 text-primary-container hover:bg-primary-container/10 rounded-xl"
-                          title="Modifier"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(entry.id)}
-                          className="p-2 text-red-500 hover:bg-red-50 rounded-xl"
-                          title="Supprimer"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                       {(Object.entries(entry.breakdown) as [string, number][]).map(([key, val]) => (
-                         <div key={key} className="bg-surface border border-outline-variant px-3 py-1.5 rounded-xl flex items-center gap-2">
-                           <div className={cn("w-1.5 h-1.5 rounded-full", CATEGORIES.find(c => c.id === key)?.color)} />
-                           <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter">
-                             {CATEGORIES.find(c => c.id === key)?.id.toUpperCase()}: {formatCurrency(val)}
-                           </span>
-                         </div>
-                       ))}
-                    </div>
-                  </div>
-                ))
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="sticky top-0 bg-white z-10 shadow-sm">
+                      <tr className="bg-surface/50 border-b border-outline-variant">
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Date</th>
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mois</th>
+                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Année</th>
+                        <th className="px-6 py-4 text-right text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Total</th>
+                        <th className="px-6 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline-variant">
+                      {filteredEntries.map((entry) => (
+                        <Fragment key={entry.id}>
+                          <tr className="hover:bg-background transition-colors group">
+                            <td className="px-6 py-4">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                                {entry.date instanceof Date ? entry.date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : (entry.date?.toDate ? entry.date.toDate().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '')}
+                              </p>
+                            </td>
+                            <td className="px-6 py-4">
+                              <p className="text-[10px] font-black uppercase tracking-widest text-primary-container bg-primary-container/10 px-2 py-0.5 rounded-md inline-block">
+                                {entry.month}
+                              </p>
+                            </td>
+                            <td className="px-6 py-4">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                                {entry.year}
+                              </p>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <p className="font-display font-bold text-sm text-primary-container">{formatCurrency(entry.total)}</p>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                <button 
+                                  onClick={() => syncToCalendar(entry)}
+                                  disabled={!!isSyncing}
+                                  className={cn(
+                                    "p-2 rounded-xl transition-colors",
+                                    isSyncing === entry.id ? "text-primary-container opacity-50" : "text-primary-container hover:bg-primary-container/10"
+                                  )}
+                                  title="Synchroniser Google Calendar"
+                                >
+                                  <CalendarSync size={16} className={isSyncing === entry.id ? "animate-spin" : ""} />
+                                </button>
+                                <button 
+                                  onClick={() => handleEdit(entry)}
+                                  className="p-2 text-primary-container hover:bg-primary-container/10 rounded-xl"
+                                  title="Modifier"
+                                >
+                                  <Edit2 size={16} />
+                                </button>
+                                <button 
+                                  onClick={() => handleDelete(entry.id)}
+                                  className="p-2 text-red-500 hover:bg-red-50 rounded-xl"
+                                  title="Supprimer"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          <tr className="bg-surface/10 hover:bg-surface/20 transition-colors">
+                            <td colSpan={5} className="px-6 pb-4 pt-1">
+                              <div className="flex flex-wrap gap-2">
+                                {(Object.entries(entry.breakdown) as [string, number][]).map(([key, val]) => (
+                                  <div key={key} className="bg-white border border-outline-variant px-3 py-1 rounded-lg flex items-center gap-2">
+                                    <div className={cn("w-1.5 h-1.5 rounded-full", CATEGORIES.find(c => c.id === key)?.color)} />
+                                    <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-tighter">
+                                      {CATEGORIES.find(c => c.id === key)?.id.toUpperCase()}: {formatCurrency(val)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        </Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>

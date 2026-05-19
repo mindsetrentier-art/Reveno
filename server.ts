@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const app = express();
+export const app = express();
 const PORT = 3000;
 
 app.use(express.json());
@@ -144,7 +144,7 @@ app.post("/api/copilot", async (req, res) => {
 });
 
 // Vite Middleware
-async function initializeServer() {
+export async function initializeServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -164,4 +164,6 @@ async function initializeServer() {
   });
 }
 
-initializeServer();
+if (process.env.NODE_ENV !== "test" && !process.env.VERCEL) {
+  initializeServer();
+}

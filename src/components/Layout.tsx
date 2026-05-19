@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import React, { useState } from 'react';
-import { Home, BarChart3, Sparkles, User, Bell, Wallet, Building2, ChevronDown, Plus, Edit2, Trash2, Check, X, Database, FileText } from 'lucide-react';
+import { Home, BarChart3, Sparkles, User, Bell, Wallet, Building2, ChevronDown, Plus, Edit2, Trash2, Check, X, Database, FileText, Target } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { cn } from '../lib/utils';
 import { useCompany } from '../context/CompanyContext';
@@ -22,6 +22,7 @@ export default function Layout() {
     { name: 'Revenus', path: '/revenue', icon: Wallet },
     { name: 'Saisie', path: '/saisie', icon: BarChart3 },
     { name: 'Rapports', path: '/reports', icon: FileText },
+    { name: 'Budget', path: '/budget', icon: Target },
     { name: 'IA', path: '/ai', icon: Sparkles },
     { name: 'Sauvegardes', path: '/backups', icon: Database },
   ];

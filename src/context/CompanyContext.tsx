@@ -29,18 +29,44 @@ export interface Goal {
   userId: string;
 }
 
+export interface Transaction {
+  id: string;
+  name: string;
+  type: 'income' | 'expense';
+  amount: number;
+  status: 'pending' | 'validated';
+  date: any;
+  companyId: string;
+  userId: string;
+  createdAt: any;
+}
+
+export interface Budget {
+  id: string;
+  month: string;
+  year: number;
+  targetRevenue: number;
+  expenseLimit: number;
+  companyId: string;
+  userId: string;
+  createdAt: any;
+}
+
 interface CompanyContextType {
   companies: Company[];
   selectedCompany: Company | null;
   setSelectedCompany: (company: Company | null) => void;
   revenues: Revenue[];
   detailedEntries: any[];
+  transactions: Transaction[];
+  budgets: Budget[];
   goal: Goal | null;
   loading: boolean;
   createCompany: (name: string) => Promise<void>;
   updateCompany: (id: string, name: string) => Promise<void>;
   deleteCompany: (id: string) => Promise<void>;
   updateGoal: (monthlyGoal: number) => Promise<void>;
+  updateBudget: (month: string, year: number, targetRevenue: number, expenseLimit: number) => Promise<void>;
 }
 
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
@@ -50,6 +76,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [revenues, setRevenues] = useState<Revenue[]>([]);
   const [detailedEntries, setDetailedEntries] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
   const [goal, setGoal] = useState<Goal | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -109,6 +137,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     if (!auth.currentUser || !selectedCompany) {
       setRevenues([]);
       setDetailedEntries([]);
+      setTransactions([]);
+      setBudgets([]);
       setGoal(null);
       return;
     }
@@ -131,6 +161,47 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       }) as Revenue[]);
     }, (error) => {
       console.error("Revenue fetch error:", error);
+    });
+
+    // Fetch Transactions
+    const qTrans = query(
+      collection(db, 'transactions'),
+      where('userId', '==', auth.currentUser.uid),
+      where('companyId', '==', selectedCompany.id),
+      orderBy('date', 'desc')
+    );
+    const unsubTrans = onSnapshot(qTrans, (snapshot) => {
+      setTransactions(snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          amount: data.isEncrypted ? decryptNumeric(data.amount) : (data.amount || 0)
+        };
+      }) as Transaction[]);
+    }, (error) => {
+      console.error("Transaction fetch error:", error);
+    });
+
+    // Fetch Budgets
+    const qBudgets = query(
+      collection(db, 'budgets'),
+      where('userId', '==', auth.currentUser.uid),
+      where('companyId', '==', selectedCompany.id),
+      orderBy('year', 'desc')
+    );
+    const unsubBudgets = onSnapshot(qBudgets, (snapshot) => {
+      setBudgets(snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          targetRevenue: data.isEncrypted ? decryptNumeric(data.targetRevenue) : data.targetRevenue,
+          expenseLimit: data.isEncrypted ? decryptNumeric(data.expenseLimit) : data.expenseLimit
+        };
+      }) as Budget[]);
+    }, (error) => {
+      console.error("Budgets fetch error:", error);
     });
 
     // Fetch Goals
@@ -194,6 +265,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       unsubRev();
       unsubGoal();
       unsubDetailed();
+      unsubTrans();
+      unsubBudgets();
     };
   }, [selectedCompany]);
 
@@ -315,6 +388,61 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateBudget = async (month: string, year: number, targetRevenue: number, expenseLimit: number) => {
+    try {
+      const { validateNumericInput } = await import('../lib/validation');
+      
+      const revVal = validateNumericInput(targetRevenue);
+      if (!revVal.isValid) {
+        alert(`Chiffre d'affaires cible: ${revVal.error}`);
+        return;
+      }
+
+      const expVal = validateNumericInput(expenseLimit);
+      if (!expVal.isValid) {
+        alert(`Limite de dépenses: ${expVal.error}`);
+        return;
+      }
+
+      if (!auth.currentUser || !selectedCompany) return;
+      const { collection, query, where, getDocs, updateDoc, doc } = await import('firebase/firestore');
+      const { encryptNumeric } = await import('../lib/encryption');
+
+      const q = query(
+        collection(db, 'budgets'),
+        where('userId', '==', auth.currentUser.uid),
+        where('companyId', '==', selectedCompany.id),
+        where('month', '==', month),
+        where('year', '==', year)
+      );
+
+      const snapshot = await getDocs(q);
+      const budgetData: any = {
+        userId: auth.currentUser.uid,
+        companyId: selectedCompany.id,
+        month,
+        year,
+        targetRevenue: encryptNumeric(targetRevenue),
+        expenseLimit: encryptNumeric(expenseLimit),
+        isEncrypted: true,
+        updatedAt: serverTimestamp()
+      };
+
+      if (snapshot.empty) {
+        budgetData.createdAt = serverTimestamp();
+        await addDoc(collection(db, 'budgets'), budgetData);
+        await backupData('BUDGET_CREATE', budgetData);
+      } else {
+        const budgetRef = doc(db, 'budgets', snapshot.docs[0].id);
+        await updateDoc(budgetRef, budgetData);
+        await backupData('BUDGET_UPDATE', { ...budgetData, id: snapshot.docs[0].id });
+      }
+    } catch (error) {
+      console.error("Update budget error:", error);
+      alert("Erreur lors de la mise à jour du budget.");
+    }
+  };
+
   return (
     <CompanyContext.Provider value={{ 
       companies, 
@@ -322,12 +450,15 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       setSelectedCompany, 
       revenues, 
       detailedEntries,
+      transactions,
+      budgets,
       goal, 
       loading, 
       createCompany,
       updateCompany,
       deleteCompany,
-      updateGoal
+      updateGoal,
+      updateBudget
     }}>
       {children}
     </CompanyContext.Provider>
