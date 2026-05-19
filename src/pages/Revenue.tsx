@@ -1,21 +1,59 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRevenueData } from '../hooks/useFinance';
 import { formatCurrency, downloadCSV } from '../lib/utils';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { Plus, Trash2, Edit2, X, Check, Filter, Download } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Check, Filter, Download, Search, Calendar, CalendarSync } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { encryptNumeric } from '../lib/encryption';
 import { useCompany } from '../context/CompanyContext';
 import { backupData } from '../lib/backup';
 import { cn } from '../lib/utils';
+import { googleSignIn, getAccessToken } from '../lib/firebase';
+import { createCalendarEvent } from '../lib/googleCalendar';
+import { MONTHS } from '../constants';
 
 export default function Revenue() {
   const { selectedCompany, revenues, loading } = useCompany();
   const [isAdding, setIsAdding] = useState(false);
+  const [isSyncing, setIsSyncing] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newMonth, setNewMonth] = useState('');
   const [newAmount, setNewAmount] = useState('');
+
+  // Filter States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Derived Years for Filter
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    revenues.forEach(r => {
+      // Assuming r.createdAt might have year or parsing month
+      // For now, let's just use current and past 2 years if no date in data
+      // Better: if r.createdAt exists, extract year
+      if (r.createdAt) {
+        const date = r.createdAt.toDate ? r.createdAt.toDate() : new Date(r.createdAt);
+        years.add(date.getFullYear().toString());
+      }
+    });
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }, [revenues]);
+
+  const filteredRevenues = useMemo(() => {
+    return revenues.filter(rev => {
+      const matchesSearch = rev.month.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      let matchesYear = true;
+      if (selectedYear !== 'all' && rev.createdAt) {
+        const date = rev.createdAt.toDate ? rev.createdAt.toDate() : new Date(rev.createdAt);
+        matchesYear = date.getFullYear().toString() === selectedYear;
+      }
+      
+      return matchesSearch && matchesYear;
+    });
+  }, [revenues, searchQuery, selectedYear]);
 
   // Draft System
   useEffect(() => {
@@ -35,9 +73,9 @@ export default function Revenue() {
   }, [newMonth, newAmount, isAdding, editingId]);
 
   const handleExport = () => {
-    if (revenues.length === 0) return;
+    if (filteredRevenues.length === 0) return;
     
-    const exportData = revenues.map(r => ({
+    const exportData = filteredRevenues.map(r => ({
       'Mois': r.month,
       'Revenu': r.revenue,
       'Statut': 'Réglé',
@@ -45,6 +83,41 @@ export default function Revenue() {
     }));
     
     downloadCSV(exportData, `${selectedCompany?.name || 'Reveno'}_Export_Revenus.csv`);
+  };
+
+  const syncToCalendar = async (rev: any) => {
+    try {
+      setIsSyncing(rev.id);
+      
+      let token = getAccessToken();
+      if (!token) {
+        const result = await googleSignIn();
+        if (!result) return;
+        token = result.accessToken;
+      }
+
+      // Prepare event date
+      // We use the month from the revenue and the year from createdAt or current year
+      const monthIdx = MONTHS.indexOf(rev.month);
+      const year = rev.createdAt?.toDate ? rev.createdAt.toDate().getFullYear() : new Date().getFullYear();
+      
+      // Default to 15th of the month
+      const eventDate = new Date(year, monthIdx, 15).toISOString().split('T')[0];
+
+      await createCalendarEvent({
+        summary: `Revenu: ${rev.month} (${selectedCompany?.name})`,
+        description: `Enregistrement du revenu pour ${rev.month} - Entité: ${selectedCompany?.name}. Montant: ${formatCurrency(rev.revenue)}`,
+        start: { date: eventDate },
+        end: { date: eventDate },
+      });
+
+      alert('Événement ajouté au calendrier Google !');
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Erreur lors de la synchronisation avec le calendrier.");
+    } finally {
+      setIsSyncing(null);
+    }
   };
 
   const handleAdd = async () => {
@@ -91,26 +164,25 @@ export default function Revenue() {
       localStorage.removeItem('revenue_draft_amount');
     } catch (err) {
       console.error(err);
+      alert("Erreur lors de l'enregistrement du revenu.");
     }
   };
 
   const handleEdit = (rev: any) => {
     setEditingId(rev.id);
     setNewMonth(rev.month);
-    setAmountStr(rev.revenue.toString());
+    setNewAmount(rev.revenue.toString());
     setIsAdding(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Helper to sync amount as string
-  const setAmountStr = (val: string) => setNewAmount(val);
-
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this institutional record?')) return;
+    if (!confirm('Voulez-vous vraiment supprimer cet enregistrement institutionnel ?')) return;
     try {
       await deleteDoc(doc(db, 'revenues', id));
     } catch (err) {
       console.error(err);
+      alert("Erreur lors de la suppression.");
     }
   };
 
@@ -121,11 +193,61 @@ export default function Revenue() {
           <p className="text-secondary font-bold text-xs uppercase tracking-[0.2em] mb-2">Gestion de Trésorerie</p>
           <h1 className="font-display font-bold text-3xl sm:text-4xl text-on-surface leading-tight">Suivi des revenus</h1>
         </div>
-        <div className="flex flex-wrap sm:flex-nowrap gap-3">
+        <div className="flex flex-wrap sm:flex-nowrap gap-3 items-center">
+          <div className="relative flex-grow sm:flex-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant opacity-40" size={16} />
+            <input 
+              type="text"
+              placeholder="Rechercher..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 pr-4 py-2.5 bg-white border border-outline-variant rounded-xl text-sm focus:outline-none focus:border-primary-container transition-colors w-full sm:w-64"
+            />
+          </div>
           <div className="flex gap-3 flex-grow sm:flex-grow-0">
-            <button className="flex-grow sm:flex-none p-3 bg-white border border-outline-variant rounded-xl text-on-surface-variant hover:text-primary-container transition-colors shadow-sm flex items-center justify-center">
-              <Filter size={18} />
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => setShowFilters(!showFilters)}
+                className={cn(
+                  "p-3 rounded-xl transition-all shadow-sm flex items-center justify-center border",
+                  showFilters || selectedYear !== 'all' 
+                    ? "bg-primary-container text-white border-primary-container" 
+                    : "bg-white border-outline-variant text-on-surface-variant hover:text-primary-container"
+                )}
+              >
+                <Filter size={18} />
+              </button>
+              
+              <AnimatePresence>
+                {showFilters && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute right-0 mt-2 w-48 bg-white border border-outline-variant rounded-2xl shadow-xl p-4 z-50 space-y-3"
+                  >
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Filtrer par année</p>
+                    <div className="space-y-1">
+                      <button 
+                        onClick={() => { setSelectedYear('all'); setShowFilters(false); }}
+                        className={cn("w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors", selectedYear === 'all' ? "bg-primary-container/10 text-primary-container font-bold" : "hover:bg-background")}
+                      >
+                        Toutes les années
+                      </button>
+                      {availableYears.map(year => (
+                        <button 
+                          key={year}
+                          onClick={() => { setSelectedYear(year); setShowFilters(false); }}
+                          className={cn("w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors", selectedYear === year ? "bg-primary-container/10 text-primary-container font-bold" : "hover:bg-background")}
+                        >
+                          {year}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             <button 
               onClick={handleExport}
               className="flex-grow sm:flex-none p-3 bg-white border border-outline-variant rounded-xl text-on-surface-variant hover:text-primary-container transition-colors shadow-sm flex items-center justify-center"
@@ -139,7 +261,7 @@ export default function Revenue() {
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary-container text-white font-bold px-6 py-4 sm:py-3 rounded-2xl sm:rounded-xl shadow-lg shadow-primary-container/20 hover:brightness-110 active:scale-95 transition-all text-xs uppercase tracking-widest"
           >
             <Plus size={18} />
-            <span>Ajouter un Enregistrement</span>
+            <span className="hidden xs:inline">Ajouter</span>
           </button>
         </div>
       </div>
@@ -209,10 +331,12 @@ export default function Revenue() {
         <div className="sm:hidden divide-y divide-outline-variant relative z-10">
           {loading ? (
             <div className="p-12 text-center animate-pulse opacity-70 text-on-surface-variant">Chargement...</div>
-          ) : revenues.length === 0 ? (
-            <div className="p-12 text-center text-on-surface-variant opacity-70">Aucune donnée.</div>
+          ) : filteredRevenues.length === 0 ? (
+            <div className="p-12 text-center text-on-surface-variant opacity-70">
+              {searchQuery || selectedYear !== 'all' ? 'Aucun résultat pour cette recherche.' : 'Aucune donnée.'}
+            </div>
           ) : (
-            revenues.map((rev) => (
+            filteredRevenues.map((rev) => (
               <div key={rev.id} className="p-5 space-y-4">
                 <div className="flex justify-between items-start">
                   <div>
@@ -220,6 +344,17 @@ export default function Revenue() {
                     <span className="inline-block mt-1 px-2 py-0.5 bg-secondary/10 text-secondary text-[9px] font-black uppercase rounded-md tracking-widest border border-secondary/15">Réglé</span>
                   </div>
                   <div className="flex gap-2">
+                    <button 
+                      onClick={() => syncToCalendar(rev)}
+                      disabled={!!isSyncing}
+                      className={cn(
+                        "p-2 rounded-xl transition-colors",
+                        isSyncing === rev.id ? "bg-primary-container/10 text-primary-container opacity-50" : "text-primary-container bg-primary-container/10 hover:bg-primary-container/20"
+                      )}
+                      title="Synchroniser Google Calendar"
+                    >
+                      <CalendarSync size={16} className={isSyncing === rev.id ? "animate-spin" : ""} />
+                    </button>
                     <button 
                       onClick={() => handleEdit(rev)}
                       className="p-2 text-primary-container bg-primary-container/10 rounded-xl"
@@ -257,10 +392,16 @@ export default function Revenue() {
             <tbody className="divide-y divide-outline-variant text-sm">
               {loading ? (
                 <tr><td colSpan={4} className="p-12 text-center animate-pulse opacity-70 text-on-surface-variant">Accès aux registres institutionnels...</td></tr>
-              ) : revenues.length === 0 ? (
-                <tr><td colSpan={4} className="p-12 text-center text-on-surface-variant opacity-70">Trésorerie vide. Initialisez les enregistrements pour générer des données de performance.</td></tr>
+              ) : filteredRevenues.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="p-12 text-center text-on-surface-variant opacity-70">
+                    {searchQuery || selectedYear !== 'all' 
+                      ? 'Aucun résultat ne correspond à vos critères de recherche.' 
+                      : 'Trésorerie vide. Initialisez les enregistrements pour générer des données de performance.'}
+                  </td>
+                </tr>
               ) : (
-                revenues.map((rev) => (
+                filteredRevenues.map((rev) => (
                   <tr key={rev.id} className="hover:bg-background transition-colors group">
                     <td className="px-8 py-6 font-display text-lg font-bold truncate max-w-[200px]">Revenu de {rev.month}</td>
                     <td className="px-8 py-6 text-right font-display font-bold text-xl">{formatCurrency(rev.revenue)}</td>
@@ -269,6 +410,17 @@ export default function Revenue() {
                     </td>
                     <td className="px-8 py-6 text-right">
                        <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => syncToCalendar(rev)}
+                            disabled={!!isSyncing}
+                            className={cn(
+                              "p-2 transition-colors",
+                              isSyncing === rev.id ? "text-primary-container opacity-50" : "text-on-surface-variant hover:text-primary-container"
+                            )}
+                            title="Synchroniser Google Calendar"
+                          >
+                            <CalendarSync size={16} className={isSyncing === rev.id ? "animate-spin" : ""} />
+                          </button>
                           <button 
                             onClick={() => handleEdit(rev)}
                             className="p-2 text-on-surface-variant hover:text-primary-container transition-colors"

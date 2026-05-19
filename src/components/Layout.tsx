@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import React, { useState } from 'react';
-import { Home, BarChart3, Sparkles, User, Bell, Wallet, Building2, ChevronDown, Plus, Edit2, Trash2, Check, X } from 'lucide-react';
+import { Home, BarChart3, Sparkles, User, Bell, Wallet, Building2, ChevronDown, Plus, Edit2, Trash2, Check, X, Database, FileText } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { cn } from '../lib/utils';
 import { useCompany } from '../context/CompanyContext';
@@ -21,21 +21,31 @@ export default function Layout() {
     { name: 'Tableau de bord', path: '/', icon: Home },
     { name: 'Revenus', path: '/revenue', icon: Wallet },
     { name: 'Saisie', path: '/saisie', icon: BarChart3 },
+    { name: 'Rapports', path: '/reports', icon: FileText },
     { name: 'IA', path: '/ai', icon: Sparkles },
+    { name: 'Sauvegardes', path: '/backups', icon: Database },
   ];
 
   const handleCreateCompany = async () => {
     if (!newCompanyName.trim()) return;
-    await createCompany(newCompanyName);
-    setNewCompanyName('');
-    setIsCreating(false);
+    try {
+      await createCompany(newCompanyName);
+      setNewCompanyName('');
+      setIsCreating(false);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleUpdate = async (id: string) => {
     if (!editName.trim()) return;
-    await updateCompany(id, editName);
-    setEditingId(null);
-    setEditName('');
+    try {
+      await updateCompany(id, editName);
+      setEditingId(null);
+      setEditName('');
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {

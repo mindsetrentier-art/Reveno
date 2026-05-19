@@ -34,6 +34,7 @@ interface CompanyContextType {
   selectedCompany: Company | null;
   setSelectedCompany: (company: Company | null) => void;
   revenues: Revenue[];
+  detailedEntries: any[];
   goal: Goal | null;
   loading: boolean;
   createCompany: (name: string) => Promise<void>;
@@ -48,6 +49,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [revenues, setRevenues] = useState<Revenue[]>([]);
+  const [detailedEntries, setDetailedEntries] = useState<any[]>([]);
   const [goal, setGoal] = useState<Goal | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -67,17 +69,28 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
           
           setCompanies(fetchedCompanies);
 
-          const savedId = localStorage.getItem('selectedCompanyId');
-          const saved = fetchedCompanies.find(c => c.id === savedId);
+          setSelectedCompany(prev => {
+            const savedId = localStorage.getItem('selectedCompanyId');
+            
+            // If already have a selected company, try to find its updated version
+            const currentId = prev?.id || savedId;
+            const updated = fetchedCompanies.find(c => c.id === currentId);
+            
+            if (updated) {
+              // Only update if something actually changed (name, etc) or if it's the first selection
+              if (JSON.stringify(updated) !== JSON.stringify(prev)) {
+                 return updated;
+              }
+              return prev;
+            } else if (fetchedCompanies.length > 0) {
+              return fetchedCompanies[0];
+            }
+            return null;
+          });
           
-          if (saved) {
-            setSelectedCompany(saved);
-          } else if (fetchedCompanies.length > 0) {
-            setSelectedCompany(fetchedCompanies[0]);
-          } else {
-            setSelectedCompany(null);
-          }
-          
+          setLoading(false);
+        }, (error) => {
+          console.error("Company snapshot error:", error);
           setLoading(false);
         });
 
@@ -95,6 +108,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!auth.currentUser || !selectedCompany) {
       setRevenues([]);
+      setDetailedEntries([]);
       setGoal(null);
       return;
     }
@@ -115,6 +129,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
           revenue: data.isEncrypted ? decryptNumeric(data.revenue) : data.revenue
         };
       }) as Revenue[]);
+    }, (error) => {
+      console.error("Revenue fetch error:", error);
     });
 
     // Fetch Goals
@@ -135,11 +151,49 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       } else {
         setGoal(null);
       }
+    }, (error) => {
+      console.error("Goal fetch error:", error);
+    });
+
+    // Fetch Detailed Entries
+    const qDetailed = query(
+      collection(db, 'detailed_entries'),
+      where('userId', '==', auth.currentUser.uid),
+      where('companyId', '==', selectedCompany.id),
+      orderBy('date', 'desc')
+    );
+    const unsubDetailed = onSnapshot(qDetailed, (snapshot) => {
+      setDetailedEntries(snapshot.docs.map(doc => {
+        const data = doc.data() as any;
+        if (data.isEncrypted) {
+          const decryptedBreakdown: Record<string, number> = {};
+          if (data.breakdown) {
+            Object.entries(data.breakdown).forEach(([k, v]) => {
+              decryptedBreakdown[k] = decryptNumeric(v as string);
+            });
+          }
+          return {
+            id: doc.id,
+            ...data,
+            breakdown: decryptedBreakdown,
+            total: decryptNumeric(data.total),
+            date: data.date?.toDate() || new Date()
+          };
+        }
+        return { 
+          id: doc.id, 
+          ...data,
+          date: data.date?.toDate() || new Date()
+        };
+      }));
+    }, (error) => {
+      console.error("Detailed entries fetch error:", error);
     });
 
     return () => {
       unsubRev();
       unsubGoal();
+      unsubDetailed();
     };
   }, [selectedCompany]);
 
@@ -150,94 +204,114 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   }, [selectedCompany]);
 
   const createCompany = async (name: string) => {
-    const { validateStringInput } = await import('../lib/validation');
-    const validation = validateStringInput(name, 2, 50);
-    if (!validation.isValid) {
-      alert(validation.error);
-      return;
+    try {
+      const { validateStringInput } = await import('../lib/validation');
+      const validation = validateStringInput(name, 2, 50);
+      if (!validation.isValid) {
+        alert(validation.error);
+        return;
+      }
+
+      if (!auth.currentUser) return;
+      const companyData = {
+        name,
+        userId: auth.currentUser.uid,
+        createdAt: serverTimestamp(),
+      };
+
+      const docRef = await addDoc(collection(db, 'companies'), companyData);
+      
+      // Automatic Backup System
+      await backupData('COMPANY_CAPTURE', { ...companyData, id: docRef.id });
+    } catch (error) {
+      console.error("Create company error:", error);
+      alert("Erreur lors de la création de l'entité. Vérifiez votre connexion.");
     }
-
-    if (!auth.currentUser) return;
-    const companyData = {
-      name,
-      userId: auth.currentUser.uid,
-      createdAt: serverTimestamp(),
-    };
-
-    await addDoc(collection(db, 'companies'), companyData);
-    
-    // Automatic Backup System
-    await backupData('COMPANY_CAPTURE', companyData);
   };
 
   const updateCompany = async (id: string, name: string) => {
-    const { validateStringInput } = await import('../lib/validation');
-    const validation = validateStringInput(name, 2, 50);
-    if (!validation.isValid) {
-      alert(validation.error);
-      return;
-    }
+    try {
+      const { validateStringInput } = await import('../lib/validation');
+      const validation = validateStringInput(name, 2, 50);
+      if (!validation.isValid) {
+        alert(validation.error);
+        return;
+      }
 
-    if (!auth.currentUser) return;
-    const { doc, updateDoc } = await import('firebase/firestore');
-    const companyRef = doc(db, 'companies', id);
-    await updateDoc(companyRef, { name });
-    
-    // Automatic Backup System
-    await backupData('COMPANY_UPDATE', { id, name });
+      if (!auth.currentUser) return;
+      const { doc, updateDoc } = await import('firebase/firestore');
+      const companyRef = doc(db, 'companies', id);
+      await updateDoc(companyRef, { name });
+      
+      // Automatic Backup System
+      await backupData('COMPANY_UPDATE', { id, name });
+    } catch (error) {
+      console.error("Update company error:", error);
+      alert("Erreur lors de la mise à jour de l'entité.");
+    }
   };
 
   const deleteCompany = async (id: string) => {
-    if (!auth.currentUser) return;
-    const { doc, deleteDoc } = await import('firebase/firestore');
-    await deleteDoc(doc(db, 'companies', id));
+    try {
+      if (!auth.currentUser) return;
+      const { doc, deleteDoc } = await import('firebase/firestore');
+      await deleteDoc(doc(db, 'companies', id));
 
-    if (selectedCompany?.id === id) {
-      setSelectedCompany(null);
-      localStorage.removeItem('selectedCompanyId');
+      if (selectedCompany?.id === id) {
+        setSelectedCompany(null);
+        localStorage.removeItem('selectedCompanyId');
+      }
+      
+      // Automatic Backup System
+      await backupData('COMPANY_DELETE', { id });
+    } catch (error) {
+      console.error("Delete company error:", error);
+      alert("Erreur lors de la suppression de l'entité.");
     }
-    
-    // Automatic Backup System
-    await backupData('COMPANY_DELETE', { id });
   };
 
   const updateGoal = async (monthlyGoal: number) => {
-    const { validateNumericInput } = await import('../lib/validation');
-    const validation = validateNumericInput(monthlyGoal);
-    if (!validation.isValid) {
-      alert(validation.error);
-      return;
-    }
+    try {
+      const { validateNumericInput } = await import('../lib/validation');
+      const validation = validateNumericInput(monthlyGoal);
+      if (!validation.isValid) {
+        alert(validation.error);
+        return;
+      }
 
-    if (!auth.currentUser || !selectedCompany) return;
-    const { collection, query, where, getDocs, updateDoc, doc, setDoc } = await import('firebase/firestore');
-    const { encryptNumeric } = await import('../lib/encryption');
+      if (!auth.currentUser || !selectedCompany) return;
+      const { collection, query, where, getDocs, updateDoc, doc, setDoc } = await import('firebase/firestore');
+      const { encryptNumeric } = await import('../lib/encryption');
 
-    const q = query(
-      collection(db, 'goals'),
-      where('userId', '==', auth.currentUser.uid),
-      where('companyId', '==', selectedCompany.id)
-    );
+      const q = query(
+        collection(db, 'goals'),
+        where('userId', '==', auth.currentUser.uid),
+        where('companyId', '==', selectedCompany.id)
+      );
 
-    const snapshot = await getDocs(q);
-    const yearlyGoal = monthlyGoal * 12;
+      const snapshot = await getDocs(q);
+      const yearlyGoal = monthlyGoal * 12;
 
-    const goalData = {
-      userId: auth.currentUser.uid,
-      companyId: selectedCompany.id,
-      monthlyGoal: encryptNumeric(monthlyGoal),
-      yearlyGoal: encryptNumeric(yearlyGoal),
-      isEncrypted: true,
-      updatedAt: serverTimestamp()
-    };
+      const goalData = {
+        userId: auth.currentUser.uid,
+        companyId: selectedCompany.id,
+        monthlyGoal: encryptNumeric(monthlyGoal),
+        yearlyGoal: encryptNumeric(yearlyGoal),
+        isEncrypted: true,
+        updatedAt: serverTimestamp()
+      };
 
-    if (snapshot.empty) {
-      await addDoc(collection(db, 'goals'), goalData);
-      await backupData('GOAL_CAPTURE', { ...goalData, monthlyGoal, yearlyGoal });
-    } else {
-      const goalRef = doc(db, 'goals', snapshot.docs[0].id);
-      await updateDoc(goalRef, goalData);
-      await backupData('GOAL_UPDATE', { ...goalData, id: snapshot.docs[0].id, monthlyGoal, yearlyGoal });
+      if (snapshot.empty) {
+        await addDoc(collection(db, 'goals'), goalData);
+        await backupData('GOAL_CAPTURE', { ...goalData, monthlyGoal, yearlyGoal });
+      } else {
+        const goalRef = doc(db, 'goals', snapshot.docs[0].id);
+        await updateDoc(goalRef, goalData);
+        await backupData('GOAL_UPDATE', { ...goalData, id: snapshot.docs[0].id, monthlyGoal, yearlyGoal });
+      }
+    } catch (error) {
+      console.error("Update goal error:", error);
+      alert("Erreur lors de la mise à jour de l'objectif.");
     }
   };
 
@@ -247,6 +321,7 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       selectedCompany, 
       setSelectedCompany, 
       revenues, 
+      detailedEntries,
       goal, 
       loading, 
       createCompany,

@@ -110,17 +110,47 @@ export default function WeatherWidget() {
 
   return (
     <div 
-      className="fixed top-20 right-8 z-[60] flex flex-col items-end"
+      className="flex flex-col items-end relative z-[60]"
       onMouseEnter={resetTimer}
       onMouseMove={resetTimer}
     >
+      <motion.button
+        onClick={() => setIsOpen(!isOpen)}
+        whileHover={{ scale: 1.02 }}
+        className={cn(
+          "h-10 flex items-center gap-3 px-4 rounded-full shadow-sm transition-all border border-outline-variant group",
+          isOpen ? "bg-primary-container text-white border-transparent" : "bg-white text-on-surface-variant hover:bg-surface"
+        )}
+      >
+        {loading ? (
+          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <div className="group-hover:scale-110 transition-transform">
+            {data && getWeatherIcon(data.weatherCode)}
+          </div>
+        )}
+        <div className="flex flex-col items-start leading-none pr-2">
+          <span className="text-[10px] font-black uppercase tracking-tighter">
+            {loading ? 'Synchro...' : error || (data ? `${data.temperature}°C` : 'Météo')}
+          </span>
+          {data && (
+            <span className="text-[8px] font-bold uppercase opacity-50 tracking-widest mt-0.5">
+              AQI: {data.pm10 < 50 ? 'Bon' : 'Moyen'}
+            </span>
+          )}
+        </div>
+        <div className={cn("transition-transform duration-500", isOpen && "rotate-180")}>
+           <ChevronRight size={14} />
+        </div>
+      </motion.button>
+
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            initial={{ opacity: 0, scale: 0.9, y: -10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 10 }}
-            className="mb-4 w-72 bg-white rounded-3xl shadow-2xl border border-outline-variant overflow-hidden"
+            exit={{ opacity: 0, scale: 0.9, y: -10 }}
+            className="mt-2 absolute top-full right-0 w-72 bg-white rounded-3xl shadow-2xl border border-outline-variant overflow-hidden"
           >
             <div className="p-6 space-y-6">
               {/* Weather Info */}
@@ -180,36 +210,6 @@ export default function WeatherWidget() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      <motion.button
-        onClick={() => setIsOpen(!isOpen)}
-        whileHover={{ x: -4 }}
-        className={cn(
-          "h-10 flex items-center gap-3 pl-4 pr-3 rounded-l-full shadow-lg transition-all border-y border-l border-outline-variant translate-x-4 hover:translate-x-0 group",
-          isOpen ? "bg-primary-container text-white border-transparent" : "bg-white text-on-surface-variant"
-        )}
-      >
-        {loading ? (
-          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <div className="group-hover:scale-110 transition-transform">
-            {data && getWeatherIcon(data.weatherCode)}
-          </div>
-        )}
-        <div className="flex flex-col items-start leading-none pr-2">
-          <span className="text-[10px] font-black uppercase tracking-tighter">
-            {loading ? 'Synchro...' : error || (data ? `${data.temperature}°C` : 'Météo')}
-          </span>
-          {data && (
-            <span className="text-[8px] font-bold uppercase opacity-50 tracking-widest mt-0.5">
-              AQI: {data.pm10 < 50 ? 'Bon' : 'Moyen'}
-            </span>
-          )}
-        </div>
-        <div className={cn("transition-transform duration-500", isOpen && "rotate-180")}>
-           <ChevronRight size={14} />
-        </div>
-      </motion.button>
     </div>
   );
 }

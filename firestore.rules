@@ -19,66 +19,85 @@ service cloud.firestore {
     // --- Validation Helpers ---
     function isValidCompany(data) {
       return data.keys().hasAll(['name', 'userId', 'createdAt']) &&
-             data.keys().size() == 3 &&
              data.name is string && data.name.size() > 0 &&
              data.userId == request.auth.uid &&
-             data.createdAt == request.time;
+             (data.createdAt == request.time || data.createdAt is timestamp);
     }
 
     function isValidRevenue(data) {
-      return data.keys().hasAll(['month', 'revenue', 'userId', 'companyId', 'createdAt']) &&
-             data.keys().size() == 5 &&
-             data.month is string && data.month.size() <= 50 &&
-             data.revenue is number && data.revenue >= 0 &&
-             data.userId == request.auth.uid &&
+      return data.userId == request.auth.uid &&
              data.companyId is string &&
-             data.createdAt == request.time;
+             (data.revenue is number || data.revenue is string) &&
+             (data.createdAt == request.time || !data.keys().has('createdAt'));
+    }
+
+    function isValidDetailedEntry(data) {
+      return data.userId == request.auth.uid &&
+             data.companyId is string &&
+             data.month is string &&
+             (data.date == request.time || !data.keys().has('date'));
+    }
+
+    function isValidBackup(data) {
+      return data.userId == request.auth.uid &&
+             data.type is string &&
+             data.payload is string;
     }
 
     function isValidGoal(data) {
-      return data.keys().hasAll(['monthlyGoal', 'yearlyGoal', 'userId', 'companyId', 'createdAt']) &&
-             data.keys().size() == 5 &&
-             data.monthlyGoal is number && data.monthlyGoal >= 0 &&
-             data.yearlyGoal is number && data.yearlyGoal >= 0 &&
-             data.userId == request.auth.uid &&
+      return data.userId == request.auth.uid &&
+             data.companyId is string;
+    }
+
+    function isValidTransaction(data) {
+      return data.userId == request.auth.uid &&
              data.companyId is string &&
-             data.createdAt == request.time;
+             data.name is string &&
+             data.type in ['income', 'expense'] &&
+             data.date is timestamp;
     }
 
     // --- Collections ---
     match /companies/{companyId} {
       allow get: if isOwner(existing().userId);
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && isEmailVerified() && isValidId(companyId) && isValidCompany(incoming());
-      allow update: if isSignedIn() && isEmailVerified() && 
-                    isValidCompany(incoming()) && 
-                    isOwner(existing().userId) &&
-                    incoming().createdAt == existing().createdAt &&
-                    incoming().userId == existing().userId;
+      allow create: if isSignedIn() && isValidCompany(incoming());
+      allow update: if isOwner(existing().userId) && incoming().userId == existing().userId;
       allow delete: if isOwner(existing().userId);
     }
 
     match /revenues/{revenueId} {
-      allow get: if isOwner(existing().userId);
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && isEmailVerified() && isValidId(revenueId) && isValidRevenue(incoming());
-      allow update: if isSignedIn() && isEmailVerified() && 
-                    isValidRevenue(incoming()) && 
-                    isOwner(existing().userId) &&
-                    incoming().createdAt == existing().createdAt &&
-                    incoming().userId == existing().userId;
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidRevenue(incoming());
+      allow update: if isOwner(existing().userId) && incoming().userId == existing().userId;
+      allow delete: if isOwner(existing().userId);
+    }
+
+    match /detailed_entries/{entryId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidDetailedEntry(incoming());
+      allow update: if isOwner(existing().userId) && incoming().userId == existing().userId;
+      allow delete: if isOwner(existing().userId);
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidTransaction(incoming());
+      allow update: if isOwner(existing().userId) && incoming().userId == existing().userId;
+      allow delete: if isOwner(existing().userId);
+    }
+
+    match /backups/{backupId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidBackup(incoming());
+      allow update: if isOwner(existing().userId) && incoming().userId == existing().userId;
       allow delete: if isOwner(existing().userId);
     }
 
     match /goals/{goalId} {
-      allow get: if isOwner(existing().userId);
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && isEmailVerified() && isValidId(goalId) && isValidGoal(incoming());
-      allow update: if isSignedIn() && isEmailVerified() && 
-                    isValidGoal(incoming()) && 
-                    isOwner(existing().userId) &&
-                    incoming().createdAt == existing().createdAt &&
-                    incoming().userId == existing().userId;
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidGoal(incoming());
+      allow update: if isOwner(existing().userId) && incoming().userId == existing().userId;
       allow delete: if isOwner(existing().userId);
     }
   }

@@ -1,15 +1,63 @@
 import { useRevenueData, useGoalData } from '../hooks/useFinance';
-import { formatCurrency, downloadCSV } from '../lib/utils';
-import { TrendingUp, Target, CreditCard, ArrowUpRight, Edit2, Check, X } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { motion } from 'motion/react';
+import { formatCurrency, downloadCSV, cn } from '../lib/utils';
+import { TrendingUp, Target, CreditCard, ArrowUpRight, Edit2, Check, X, Wallet } from 'lucide-react';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts';
+import { motion, AnimatePresence } from 'motion/react';
 import { useCompany } from '../context/CompanyContext';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import WeatherWidget from '../components/WeatherWidget';
+import { CATEGORIES, MONTHS, YEARS } from '../constants';
 
 export default function Dashboard() {
-  const { selectedCompany, revenues, goal, loading: contextLoading, updateGoal } = useCompany();
+  const { selectedCompany, revenues, detailedEntries, goal, loading: contextLoading, updateGoal } = useCompany();
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [newGoalValue, setNewGoalValue] = useState('');
+
+  // Expense Chart States
+  const [expenseMonth, setExpenseMonth] = useState<string>('all');
+  const [expenseYear, setExpenseYear] = useState<string>(new Date().getFullYear().toString());
+
+  // Cash Flow Range State
+  const [cashFlowRange, setCashFlowRange] = useState<number>(6);
+
+  const expenseBreakdown = useMemo(() => {
+    const totals: Record<string, number> = {};
+    
+    detailedEntries.forEach(entry => {
+      const matchesYear = expenseYear === 'all' || entry.year.toString() === expenseYear;
+      const matchesMonth = expenseMonth === 'all' || entry.month === expenseMonth;
+      
+      if (matchesYear && matchesMonth) {
+        Object.entries(entry.breakdown).forEach(([catId, amount]) => {
+          totals[catId] = (totals[catId] || 0) + (amount as number);
+        });
+      }
+    });
+
+    return CATEGORIES.map(cat => ({
+      name: cat.label,
+      value: totals[cat.id] || 0,
+      color: cat.color
+    })).filter(item => item.value > 0);
+  }, [detailedEntries, expenseMonth, expenseYear]);
+
+  const cashFlowData = useMemo(() => {
+    // Map last N revenues to their corresponding expenses
+    return [...revenues].slice(0, cashFlowRange).reverse().map(r => {
+      const revYear = r.createdAt?.toDate ? r.createdAt.toDate().getFullYear() : new Date().getFullYear();
+      
+      const monthlyTotalExpense = detailedEntries
+        .filter(e => e.month === r.month && (!e.year || e.year === revYear))
+        .reduce((sum, e) => sum + (e.total || 0), 0);
+
+      return {
+        name: r.month.substring(0, 3).toUpperCase(),
+        revenue: r.revenue,
+        expenses: monthlyTotalExpense,
+        cashFlow: r.revenue - monthlyTotalExpense,
+      };
+    });
+  }, [revenues, detailedEntries, cashFlowRange]);
 
   const handleExport = () => {
     if (revenues.length === 0) return;
@@ -61,6 +109,11 @@ export default function Dashboard() {
           Export CSV
         </button>
       </section>
+
+      {/* Weather Widget Integration */}
+      <div className="flex justify-end -mt-4 -mb-4">
+        <WeatherWidget />
+      </div>
 
       {/* Main Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -159,8 +212,17 @@ export default function Dashboard() {
                   <>
                     <button 
                       onClick={async () => {
-                        await updateGoal(parseFloat(newGoalValue));
-                        setIsEditingGoal(false);
+                        const val = parseFloat(newGoalValue);
+                        if (isNaN(val)) {
+                          alert("Veuillez saisir un nombre valide");
+                          return;
+                        }
+                        try {
+                          await updateGoal(val);
+                          setIsEditingGoal(false);
+                        } catch (err) {
+                          console.error(err);
+                        }
                       }}
                       className="p-1 hover:bg-green-50 text-green-600 rounded-md"
                     >
@@ -215,6 +277,188 @@ export default function Dashboard() {
             </div>
           </motion.div>
         </div>
+      </div>
+
+      {/* Cash Flow Analysis Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="lg:col-span-12 bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-sm border border-outline-variant relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 p-8 flex items-center gap-2 pointer-events-none opacity-5">
+            <Wallet size={120} />
+          </div>
+          
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 relative z-10">
+            <div>
+              <h3 className="font-display font-bold text-2xl">Trésorerie & Marges</h3>
+              <p className="text-on-surface-variant text-sm font-sans opacity-70">Différentiel entre revenus collectés et charges variables</p>
+            </div>
+            
+            <div className="flex bg-background p-1 rounded-2xl border border-outline-variant">
+              {[6, 12].map((range) => (
+                <button
+                  key={range}
+                  onClick={() => setCashFlowRange(range)}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                    cashFlowRange === range 
+                      ? "bg-primary-container text-white shadow-lg shadow-primary-container/20" 
+                      : "text-on-surface-variant hover:bg-surface"
+                  )}
+                >
+                  {range} Mois
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="h-[300px] sm:h-[400px]">
+            {cashFlowData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={cashFlowData}>
+                  <defs>
+                    <linearGradient id="colorCashFlow" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-primary-container)" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="var(--color-primary-container)" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-outline-variant)" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: 'var(--color-on-surface-variant)', fontSize: 10, fontWeight: 600 }}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false}
+                    tick={{ fill: 'var(--color-on-surface-variant)', fontSize: 10 }}
+                    tickFormatter={(value) => `${value} €`}
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-outline-variant)', borderRadius: '16px', borderTop: '4px solid var(--color-primary-container)' }}
+                    formatter={(value: number) => [formatCurrency(value), "Cash Flow"]}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="cashFlow" 
+                    stroke="var(--color-primary-container)" 
+                    strokeWidth={3}
+                    fillOpacity={1} 
+                    fill="url(#colorCashFlow)" 
+                    animationDuration={1500}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="revenue" 
+                    stroke="var(--color-secondary)" 
+                    strokeWidth={1}
+                    strokeDasharray="5 5"
+                    fill="transparent"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-on-surface-variant/40">
+                <p className="text-sm font-bold uppercase tracking-widest">Données de trésorerie insuffisantes</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Expense Analysis Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-4">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.1 }}
+          className="lg:col-span-12 bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-sm border border-outline-variant"
+        >
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+            <div>
+              <h3 className="font-display font-bold text-2xl">Répartition des Dépenses</h3>
+              <p className="text-on-surface-variant text-sm font-sans opacity-70">Analyse détaillée par catégorie de produits</p>
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <select 
+                value={expenseMonth}
+                onChange={(e) => setExpenseMonth(e.target.value)}
+                className="flex-grow sm:flex-none bg-background border border-outline-variant rounded-xl px-3 py-2 text-xs font-bold outline-none"
+              >
+                <option value="all">Tous les mois</option>
+                {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <select 
+                value={expenseYear}
+                onChange={(e) => setExpenseYear(e.target.value)}
+                className="flex-grow sm:flex-none bg-background border border-outline-variant rounded-xl px-3 py-2 text-xs font-bold outline-none"
+              >
+                <option value="all">Toutes les années</option>
+                {YEARS.map(y => <option key={y} value={y.toString()}>{y}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+            <div className="h-[300px] relative">
+              {expenseBreakdown.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={expenseBreakdown}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={80}
+                      outerRadius={120}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {expenseBreakdown.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value: number) => formatCurrency(value)}
+                      contentStyle={{ backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-outline-variant)', borderRadius: '16px' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-on-surface-variant/40">
+                  <CreditCard size={48} className="mb-4 opacity-20" />
+                  <p className="text-sm font-bold uppercase tracking-widest">Aucune donnée pour cette période</p>
+                </div>
+              )}
+              {expenseBreakdown.length > 0 && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Total</span>
+                  <span className="text-2xl font-display font-bold">
+                    {formatCurrency(expenseBreakdown.reduce((acc, curr) => acc + curr.value, 0))}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">Détails des Catégories</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {expenseBreakdown.sort((a, b) => b.value - a.value).map((item, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-background border border-outline-variant rounded-2xl">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                      <span className="text-[10px] font-bold uppercase truncate pr-2">{item.name}</span>
+                    </div>
+                    <span className="text-xs font-display font-bold shrink-0">{formatCurrency(item.value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </motion.div>
       </div>
 
       {/* Recent Transactions List */}

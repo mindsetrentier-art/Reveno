@@ -9,9 +9,10 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Revenue from './pages/Revenue';
 import AIIntelligence from './pages/AIIntelligence';
-import Layout from './components/Layout';
-
 import DetailedEntry from './pages/DetailedEntry';
+import Backups from './pages/Backups';
+import Reports from './pages/Reports';
+import Layout from './components/Layout';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -44,6 +45,8 @@ export default function App() {
             <Route path="/revenue" element={<Revenue />} />
             <Route path="/saisie" element={<DetailedEntry />} />
             <Route path="/ai" element={<AIIntelligence />} />
+            <Route path="/backups" element={<Backups />} />
+            <Route path="/reports" element={<Reports />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" />} />
