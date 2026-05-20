@@ -16,6 +16,7 @@ export default function Layout() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newCompanyName, setNewCompanyName] = useState('');
   const [editName, setEditName] = useState('');
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const navItems = [
     { name: 'Tableau de bord', path: '/', icon: Home },
@@ -29,6 +30,10 @@ export default function Layout() {
 
   const handleCreateCompany = async () => {
     if (!newCompanyName.trim()) return;
+    if (companies.length >= 8) {
+      alert("Vous ne pouvez pas enregistrer plus de 8 entités.");
+      return;
+    }
     try {
       await createCompany(newCompanyName);
       setNewCompanyName('');
@@ -49,11 +54,20 @@ export default function Layout() {
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
+  const handleDeleteClick = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (confirm('Voulez-vous vraiment supprimer cette entité ? Toutes les données associées seront inaccessibles.')) {
-      await deleteCompany(id);
-    }
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    await deleteCompany(id);
+    setDeleteConfirmId(null);
+  };
+
+  const cancelDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteConfirmId(null);
   };
 
   return (
@@ -110,6 +124,18 @@ export default function Layout() {
                               <X size={14} />
                             </button>
                           </div>
+                        ) : deleteConfirmId === c.id ? (
+                          <div className="flex items-center gap-2 p-2 bg-red-50 rounded-xl justify-between">
+                             <span className="text-xs text-red-700 font-medium pl-2">Confirmer sup. ?</span>
+                             <div className="flex gap-1">
+                                <button onClick={(e) => confirmDelete(e, c.id)} className="p-1 hover:bg-red-200 text-red-700 rounded-lg">
+                                  <Check size={14} />
+                                </button>
+                                <button onClick={cancelDelete} className="p-1 hover:bg-surface text-on-surface-variant rounded-lg">
+                                  <X size={14} />
+                                </button>
+                             </div>
+                          </div>
                         ) : (
                           <div className="flex items-center">
                             <button
@@ -136,7 +162,7 @@ export default function Layout() {
                                 <Edit2 size={12} />
                               </button>
                               <button 
-                                onClick={(e) => handleDelete(e, c.id)}
+                                onClick={(e) => handleDeleteClick(e, c.id)}
                                 className="p-1.5 hover:bg-red-50 rounded-lg text-red-500"
                               >
                                 <Trash2 size={12} />
@@ -180,13 +206,27 @@ export default function Layout() {
                       </div>
                     ) : (
                       <button 
-                        onClick={() => setIsCreating(true)}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-primary-container hover:bg-primary-container/5 transition-colors group"
+                        onClick={() => {
+                          if (companies.length >= 8) {
+                            alert("Limite de 8 entités atteinte.");
+                            return;
+                          }
+                          setIsCreating(true)
+                        }}
+                        disabled={companies.length >= 8}
+                        className={cn(
+                          "w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors group",
+                          companies.length >= 8 ? "text-on-surface-variant/50 cursor-not-allowed" : "text-primary-container hover:bg-primary-container/5"
+                        )}
+                        title={companies.length >= 8 ? "Limite de 8 entités atteinte." : ""}
                       >
-                        <div className="w-5 h-5 rounded-md bg-primary-container/10 flex items-center justify-center group-hover:bg-primary-container group-hover:text-white transition-all">
+                        <div className={cn(
+                          "w-5 h-5 rounded-md flex items-center justify-center transition-all",
+                          companies.length >= 8 ? "bg-surface-variant text-on-surface-variant/50" : "bg-primary-container/10 group-hover:bg-primary-container group-hover:text-white"
+                        )}>
                           <Plus size={12} />
                         </div>
-                        Ajouter une entité
+                        {companies.length >= 8 ? "Limite de 8 entités atteinte" : "Ajouter une entité"}
                       </button>
                     )}
                   </div>
@@ -258,20 +298,20 @@ export default function Layout() {
       </main>
 
       {/* Bottom Nav (Mobile) */}
-      <nav className="md:hidden fixed bottom-4 sm:bottom-6 left-4 sm:left-6 right-4 sm:left-6 z-40 bg-surface/90 backdrop-blur-2xl border border-outline-variant rounded-3xl px-2 py-2 flex justify-around items-center shadow-2xl">
+      <nav className="md:hidden fixed bottom-4 sm:bottom-6 left-4 sm:left-6 right-4 sm:left-6 z-40 bg-surface/90 backdrop-blur-2xl border border-outline-variant rounded-3xl px-2 py-2 flex items-center shadow-2xl overflow-x-auto no-scrollbar gap-2">
         {navItems.map((item) => (
           <Link
             key={item.path}
             to={item.path}
             className={cn(
-              "flex flex-col items-center gap-1 transition-all duration-300 px-3 sm:px-4 py-2 rounded-2xl",
+              "flex flex-col items-center gap-1 transition-all duration-300 px-3 sm:px-4 py-2 rounded-2xl min-w-[70px] shrink-0",
               location.pathname === item.path 
                 ? "text-primary-container bg-primary-container/10 scale-105" 
                 : "text-on-surface-variant hover:text-primary-container"
             )}
           >
             <item.icon size={22} />
-            <span className="text-[9px] font-black uppercase tracking-tighter">{item.name}</span>
+            <span className="text-[9px] font-black uppercase tracking-tighter truncate w-full text-center">{item.name}</span>
           </Link>
         ))}
       </nav>

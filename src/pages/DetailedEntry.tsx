@@ -6,7 +6,8 @@ import { useCompany } from '../context/CompanyContext';
 import { backupData } from '../lib/backup';
 import { encryptNumeric, decryptNumeric } from '../lib/encryption';
 import { motion, AnimatePresence } from 'motion/react';
-import { Save, Trash2, Plus, ArrowRight, History, Calculator, CheckCircle2, Edit2, X, Search, Filter as FilterIcon, ChevronDown, ChevronUp, CalendarSync } from 'lucide-react';
+import { Save, Trash2, Plus, ArrowRight, History, Calculator, CheckCircle2, Edit2, X, Search, Filter as FilterIcon, ChevronDown, ChevronUp, CalendarSync, ArrowUp, ArrowDown } from 'lucide-react';
+
 import { cn } from '../lib/utils';
 import { googleSignIn, getAccessToken } from '../lib/firebase';
 import { createCalendarEvent } from '../lib/googleCalendar';
@@ -47,6 +48,8 @@ export default function DetailedEntry() {
   const [filterYear, setFilterYear] = useState<string>('all');
   const [filterCategories, setFilterCategories] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [sortField, setSortField] = useState<'date' | 'total'>('date');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   const loading = contextLoading;
 
@@ -67,11 +70,14 @@ export default function DetailedEntry() {
 
       return matchesSearch && matchesMonth && matchesYear && matchesCategories;
     }).sort((a, b) => {
+      if (sortField === 'total') {
+        return sortOrder === 'desc' ? b.total - a.total : a.total - b.total;
+      }
       const dateA = a.date instanceof Date ? a.date.getTime() : (a.date?.toDate ? a.date.toDate().getTime() : 0);
       const dateB = b.date instanceof Date ? b.date.getTime() : (b.date?.toDate ? b.date.toDate().getTime() : 0);
-      return dateB - dateA;
+      return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
     });
-  }, [entries, searchQuery, filterMonth, filterYear, filterCategories]);
+  }, [entries, searchQuery, filterMonth, filterYear, filterCategories, sortField, sortOrder]);
 
   const toggleCategoryFilter = (catId: string) => {
     setFilterCategories(prev => 
@@ -800,10 +806,20 @@ export default function DetailedEntry() {
                   <table className="w-full text-left border-collapse">
                     <thead className="sticky top-0 bg-white z-10 shadow-sm">
                       <tr className="bg-surface/50 border-b border-outline-variant">
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Date</th>
+                        <th 
+                          onClick={() => { setSortField('date'); setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc'); }}
+                          className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant cursor-pointer hover:bg-surface-variant transition-colors"
+                        >
+                          <div className="flex items-center gap-1">Date {sortField === 'date' && (sortOrder === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}</div>
+                        </th>
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mois</th>
                         <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Année</th>
-                        <th className="px-6 py-4 text-right text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Total</th>
+                        <th 
+                          onClick={() => { setSortField('total'); setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc'); }}
+                          className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant cursor-pointer hover:bg-surface-variant transition-colors"
+                        >
+                          <div className="flex items-center justify-end gap-1">Total {sortField === 'total' && (sortOrder === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}</div>
+                        </th>
                         <th className="px-6 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Actions</th>
                       </tr>
                     </thead>

@@ -296,6 +296,9 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       
       // Automatic Backup System
       await backupData('COMPANY_CAPTURE', { ...companyData, id: docRef.id });
+
+      setSelectedCompany({ id: docRef.id, ...companyData } as Company);
+      localStorage.setItem('selectedCompanyId', docRef.id);
     } catch (error) {
       console.error("Create company error:", error);
       alert("Erreur lors de la création de l'entité. Vérifiez votre connexion.");

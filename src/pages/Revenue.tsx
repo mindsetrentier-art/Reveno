@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRevenueData } from '../hooks/useFinance';
 import { formatCurrency, downloadCSV } from '../lib/utils';
+import { exportToPDF } from '../lib/pdfExport';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { Plus, Trash2, Edit2, X, Check, Filter, Download, Search, Calendar, CalendarSync } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Check, Filter, Download, Search, Calendar, CalendarSync, FileText, ArrowUp, ArrowDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { encryptNumeric } from '../lib/encryption';
 import { useCompany } from '../context/CompanyContext';
@@ -25,6 +26,8 @@ export default function Revenue() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedYear, setSelectedYear] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [sortField, setSortField] = useState<'date' | 'revenue'>('date');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   // Derived Years for Filter
   const availableYears = useMemo(() => {
@@ -52,8 +55,15 @@ export default function Revenue() {
       }
       
       return matchesSearch && matchesYear;
+    }).sort((a, b) => {
+      if (sortField === 'revenue') {
+        return sortOrder === 'desc' ? b.revenue - a.revenue : a.revenue - b.revenue;
+      }
+      const dateA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+      const dateB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+      return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
     });
-  }, [revenues, searchQuery, selectedYear]);
+  }, [revenues, searchQuery, selectedYear, sortField, sortOrder]);
 
   // Draft System
   useEffect(() => {
@@ -187,7 +197,7 @@ export default function Revenue() {
   };
 
   return (
-    <div className="space-y-8">
+    <div id="revenue-report-content" className="space-y-8 bg-background pb-10">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
         <div>
           <p className="text-secondary font-bold text-xs uppercase tracking-[0.2em] mb-2">Gestion de Trésorerie</p>
@@ -248,6 +258,13 @@ export default function Revenue() {
                 )}
               </AnimatePresence>
             </div>
+            <button 
+              onClick={() => exportToPDF('revenue-report-content', `Revenus_${selectedCompany?.name || 'Reveno'}`.replace(/\s+/g, '_'))}
+              className="flex-grow sm:flex-none p-3 bg-white border border-outline-variant rounded-xl text-on-surface-variant hover:text-primary-container transition-colors shadow-sm flex items-center justify-center"
+              title="Exporter PDF"
+            >
+              <FileText size={18} />
+            </button>
             <button 
               onClick={handleExport}
               className="flex-grow sm:flex-none p-3 bg-white border border-outline-variant rounded-xl text-on-surface-variant hover:text-primary-container transition-colors shadow-sm flex items-center justify-center"
@@ -383,8 +400,18 @@ export default function Revenue() {
           <table className="w-full text-left">
             <thead className="bg-surface border-b border-outline-variant">
               <tr>
-                <th className="px-8 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em]">Période de Rapport</th>
-                <th className="px-8 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] text-right">Flux de Revenus</th>
+                <th 
+                  onClick={() => { setSortField('date'); setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc'); }}
+                  className="px-8 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] cursor-pointer hover:bg-surface-variant transition-colors"
+                >
+                  <div className="flex items-center gap-1">Période de Rapport {sortField === 'date' && (sortOrder === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}</div>
+                </th>
+                <th 
+                  onClick={() => { setSortField('revenue'); setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc'); }}
+                  className="px-8 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] text-right cursor-pointer hover:bg-surface-variant transition-colors"
+                >
+                  <div className="flex items-center justify-end gap-1">Flux de Revenus {sortField === 'revenue' && (sortOrder === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}</div>
+                </th>
                 <th className="px-8 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] text-center">Statut Audit</th>
                 <th className="px-8 py-5 text-[10px] font-bold text-on-surface-variant uppercase tracking-[0.2em] text-right">Actions</th>
               </tr>

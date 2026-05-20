@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useCompany } from '../context/CompanyContext';
 import { CATEGORIES, MONTHS, YEARS } from '../constants';
 import { formatCurrency, downloadCSV, cn } from '../lib/utils';
+import { exportToPDF } from '../lib/pdfExport';
 import { FileText, Download, Calendar, Filter, ChevronRight, TrendingUp, TrendingDown, Clock, Search, Scale, ArrowRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
@@ -260,7 +261,7 @@ export default function Reports() {
   if (loading) return <div className="p-20 text-center font-bold text-on-surface-variant animate-pulse tracking-widest uppercase">Génération du rapport...</div>;
 
   return (
-    <div className="space-y-8 pb-20">
+    <div id="reports-report-content" className="space-y-8 pb-20 bg-background">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
         <div className="space-y-1">
@@ -270,13 +271,22 @@ export default function Reports() {
           </div>
           <h1 className="font-display font-bold text-3xl sm:text-4xl">Rapports Personnalisés</h1>
         </div>
-        <button 
-          onClick={handleExport}
-          className="flex items-center gap-3 bg-white border border-outline-variant px-6 py-3 rounded-2xl font-bold hover:bg-surface active:scale-95 transition-all shadow-sm"
-        >
-          <Download size={20} />
-          <span>Exporter CSV</span>
-        </button>
+        <div className="flex gap-2" data-html2canvas-ignore>
+          <button 
+            onClick={() => exportToPDF('reports-report-content', `Rapports_${selectedCompany?.name || 'Reveno'}`.replace(/\s+/g, '_'))}
+            className="flex items-center gap-3 bg-white border border-outline-variant px-6 py-3 rounded-2xl font-bold hover:bg-surface active:scale-95 transition-all shadow-sm"
+          >
+            <FileText size={20} />
+            <span>Exporter PDF</span>
+          </button>
+          <button 
+            onClick={handleExport}
+            className="flex items-center gap-3 bg-white border border-outline-variant px-6 py-3 rounded-2xl font-bold hover:bg-surface active:scale-95 transition-all shadow-sm"
+          >
+            <Download size={20} />
+            <span>Exporter CSV</span>
+          </button>
+        </div>
       </div>
 
       {/* Filters Bar */}

@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, X, Send, User, Bot, Loader2, MessageSquare } from 'lucide-react';
+import { Sparkles, X, Send, User, Bot, Loader2, MessageSquare, ChevronLeft } from 'lucide-react';
 import { useCompany } from '../context/CompanyContext';
 import { cn } from '../lib/utils';
 
@@ -11,11 +11,32 @@ interface Message {
 
 export default function Copilot() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const minimizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { selectedCompany, revenues, goal } = useCompany();
+
+  const startMinimizeTimer = useCallback(() => {
+    if (minimizeTimeoutRef.current) clearTimeout(minimizeTimeoutRef.current);
+    minimizeTimeoutRef.current = setTimeout(() => {
+      setIsMinimized(true);
+    }, 20000); // 20 seconds
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      startMinimizeTimer();
+    } else {
+      setIsMinimized(false);
+      if (minimizeTimeoutRef.current) clearTimeout(minimizeTimeoutRef.current);
+    }
+    return () => {
+      if (minimizeTimeoutRef.current) clearTimeout(minimizeTimeoutRef.current);
+    };
+  }, [isOpen, startMinimizeTimer]);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -62,15 +83,24 @@ export default function Copilot() {
     }
   };
 
+  const handleToggle = () => {
+    if (isMinimized) {
+      setIsMinimized(false);
+      startMinimizeTimer();
+    } else {
+      setIsOpen(!isOpen);
+    }
+  };
+
   return (
-    <div className="fixed bottom-8 right-8 z-[100]">
+    <div className="fixed bottom-8 right-0 pr-8 z-[100] flex items-end justify-end">
       <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="mb-4 w-96 max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-8rem)] bg-white rounded-[32px] shadow-2xl border border-outline-variant flex flex-col overflow-hidden"
+            className="mb-4 mr-0 w-96 max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-8rem)] bg-white rounded-[32px] shadow-2xl border border-outline-variant flex flex-col overflow-hidden absolute bottom-[70px] right-8"
           >
             {/* Header */}
             <div className="p-6 bg-primary-container text-white flex justify-between items-center shrink-0">
@@ -170,13 +200,21 @@ export default function Copilot() {
       </AnimatePresence>
 
       <motion.button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        className="w-16 h-16 bg-primary-container text-white rounded-full shadow-2xl flex items-center justify-center relative group"
+        layout
+        className={cn(
+          "bg-primary-container text-white shadow-2xl flex items-center justify-center relative group transition-all duration-500",
+          isMinimized ? "w-2 h-10 rounded-l-md rounded-r-none absolute right-0 translate-x-1 hover:translate-x-0 cursor-pointer" : "w-16 h-16 rounded-full"
+        )}
       >
-        <AnimatePresence mode="wait">
-          {isOpen ? (
+        <AnimatePresence mode="popLayout">
+          {isMinimized ? (
+            <motion.div key="minimized" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full h-full flex flex-col justify-center items-center opacity-50">
+               <div className="w-1 h-3 bg-white/50 rounded-full" />
+            </motion.div>
+          ) : isOpen ? (
             <motion.div key="close" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }}>
               <X size={28} />
             </motion.div>
@@ -186,12 +224,20 @@ export default function Copilot() {
             </motion.div>
           )}
         </AnimatePresence>
-        <div className="absolute -top-1 -right-1 w-6 h-6 bg-secondary text-white text-[10px] font-bold flex items-center justify-center rounded-full border-4 border-white shadow-lg">
-           <Sparkles size={10} />
-        </div>
+        
+        {!isMinimized && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0 }} 
+            animate={{ opacity: 1, scale: 1 }} 
+            exit={{ opacity: 0, scale: 0 }} 
+            className="absolute -top-1 -right-1 w-6 h-6 bg-secondary text-white text-[10px] font-bold flex items-center justify-center rounded-full border-4 border-white shadow-lg"
+          >
+             <Sparkles size={10} />
+          </motion.div>
+        )}
         
         {/* Tooltip */}
-        {!isOpen && (
+        {!isOpen && !isMinimized && (
           <div className="absolute right-20 bg-primary-container text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-xl border border-white/10">
             Copilote IA disponible
           </div>

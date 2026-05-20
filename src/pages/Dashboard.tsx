@@ -1,5 +1,6 @@
 import { useRevenueData, useGoalData } from '../hooks/useFinance';
 import { formatCurrency, downloadCSV, cn } from '../lib/utils';
+import { exportToPDF } from '../lib/pdfExport';
 import { TrendingUp, Target, CreditCard, ArrowUpRight, Edit2, Check, X, Wallet } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, AreaChart, Area } from 'recharts';
 import { motion, AnimatePresence } from 'motion/react';
@@ -95,19 +96,27 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-8">
+    <div id="dashboard-report-content" className="space-y-8 bg-background pb-10">
       {/* Welcome Section */}
       <section className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <p className="text-secondary font-bold text-xs uppercase tracking-[0.2em] mb-2 text-center sm:text-left">Analyses Institutionnelles</p>
           <h1 className="font-display font-bold text-3xl sm:text-4xl text-on-surface text-center sm:text-left leading-tight">Performance des Revenus</h1>
         </div>
-        <button 
-          onClick={handleExport}
-          className="w-full sm:w-auto px-6 py-3 bg-white border border-outline-variant rounded-2xl text-on-surface-variant font-bold text-[10px] uppercase tracking-widest hover:bg-surface transition-colors"
-        >
-          Export CSV
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto" data-html2canvas-ignore>
+          <button 
+            onClick={() => exportToPDF('dashboard-report-content', `Dashboard_${selectedCompany?.name || 'Reveno'}`.replace(/\s+/g, '_'))}
+            className="flex-1 sm:flex-none px-6 py-3 bg-white border border-outline-variant rounded-2xl text-on-surface-variant font-bold text-[10px] uppercase tracking-widest hover:bg-surface transition-colors"
+          >
+            Export PDF
+          </button>
+          <button 
+            onClick={handleExport}
+            className="flex-1 sm:flex-none px-6 py-3 bg-white border border-outline-variant rounded-2xl text-on-surface-variant font-bold text-[10px] uppercase tracking-widest hover:bg-surface transition-colors"
+          >
+            Export CSV
+          </button>
+        </div>
       </section>
 
       {/* Weather Widget Integration */}
