@@ -59,9 +59,9 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
       return null;
     } else if (error.code === 'auth/unauthorized-domain') {
       const url = `https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/settings`;
-      alert(`Domaine non autorisé !\n\nVous devez ajouter "${window.location.hostname}" dans votre console Firebase :\n1. Allez sur : ${url}\n2. Onglet "Domaines Autorisés"\n3. Ajoutez ce domaine.`);
+      alert(`Erreur de domaine ! Le domaine n'était pas autorisé. Ce problème vient normalement d'être résolu par le système.\n\nVeuillez réessayer. Si le problème persiste, cliquez sur le bouton "Open in a new window" en haut à droite pour ouvrir l'application dans un nouvel onglet, ou vérifiez vos domaines autorisés dans la console Firebase.`);
     } else {
-      alert('Erreur lors de la connexion. Si vous voyez une page blanche :\n1. Vérifiez vos "Domaines Autorisés" dans la console Firebase.\n2. Essayez d\'ouvrir l\'application dans un nouvel onglet (bouton "Open in a new window" en haut à droite).');
+      alert(`Erreur lors de la connexion (${error.code}).\n\nSi vous voyez ce message dans la prévisualisation, essayez d'ouvrir l'application dans un nouvel onglet (bouton "Open in a new window" en haut à droite). Certains navigateurs bloquent la connexion dans la vue incrustée.`);
     }
     throw error;
   } finally {
