@@ -914,6 +914,14 @@ export default function DetailedEntry() {
           </div>
         </div>
       </div>
+
+      <button
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className="fixed sm:bottom-8 bottom-28 right-6 sm:right-8 w-14 h-14 bg-primary-container text-white rounded-full shadow-lg shadow-primary-container/30 flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-40 group"
+        title="Nouvelle saisie"
+      >
+        <Plus size={24} className="group-hover:rotate-90 transition-transform duration-300" />
+      </button>
     </div>
   );
 }

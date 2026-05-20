@@ -124,18 +124,6 @@ export default function Layout() {
                               <X size={14} />
                             </button>
                           </div>
-                        ) : deleteConfirmId === c.id ? (
-                          <div className="flex items-center gap-2 p-2 bg-red-50 rounded-xl justify-between">
-                             <span className="text-xs text-red-700 font-medium pl-2">Confirmer sup. ?</span>
-                             <div className="flex gap-1">
-                                <button onClick={(e) => confirmDelete(e, c.id)} className="p-1 hover:bg-red-200 text-red-700 rounded-lg">
-                                  <Check size={14} />
-                                </button>
-                                <button onClick={cancelDelete} className="p-1 hover:bg-surface text-on-surface-variant rounded-lg">
-                                  <X size={14} />
-                                </button>
-                             </div>
-                          </div>
                         ) : (
                           <div className="flex items-center">
                             <button
@@ -315,6 +303,48 @@ export default function Layout() {
           </Link>
         ))}
       </nav>
+      <AnimatePresence>
+        {deleteConfirmId && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl border border-outline-variant space-y-6"
+            >
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 size={32} />
+              </div>
+              <div className="text-center space-y-2">
+                <h3 className="font-display font-bold text-xl text-on-surface">Supprimer l'entité ?</h3>
+                <p className="text-sm text-on-surface-variant">
+                  Êtes-vous sûr de vouloir supprimer cette entité ? Toutes les données associées seront perdues. Cette action est irréversible.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button 
+                  onClick={cancelDelete}
+                  className="flex-1 py-3 px-4 rounded-xl font-bold bg-surface hover:bg-surface-variant transition-colors text-on-surface-variant text-sm"
+                >
+                  Annuler
+                </button>
+                <button 
+                  onClick={(e) => confirmDelete(e, deleteConfirmId)}
+                  className="flex-1 py-3 px-4 rounded-xl font-bold bg-red-600 hover:bg-red-700 transition-colors text-white text-sm shadow-lg shadow-red-600/20"
+                >
+                  Supprimer
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {selectedCompany && <Copilot />}
       {selectedCompany && <WeatherWidget />}
     </div>
