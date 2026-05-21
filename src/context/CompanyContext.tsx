@@ -62,8 +62,8 @@ interface CompanyContextType {
   budgets: Budget[];
   goal: Goal | null;
   loading: boolean;
-  createCompany: (name: string) => Promise<void>;
-  updateCompany: (id: string, name: string) => Promise<void>;
+  createCompany: (name: string) => Promise<boolean>;
+  updateCompany: (id: string, name: string) => Promise<boolean>;
   deleteCompany: (id: string) => Promise<void>;
   updateGoal: (monthlyGoal: number) => Promise<void>;
   updateBudget: (month: string, year: number, targetRevenue: number, expenseLimit: number) => Promise<void>;
@@ -276,18 +276,18 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     }
   }, [selectedCompany]);
 
-  const createCompany = async (name: string) => {
+  const createCompany = async (name: string): Promise<boolean> => {
     try {
       const { validateStringInput } = await import('../lib/validation');
-      const validation = validateStringInput(name, 2, 50);
+      const validation = validateStringInput(name, 1, 50);
       if (!validation.isValid) {
         alert(validation.error);
-        return;
+        return false;
       }
 
-      if (!auth.currentUser) return;
+      if (!auth.currentUser) return false;
       const companyData = {
-        name,
+        name: name.trim(),
         userId: auth.currentUser.uid,
         createdAt: serverTimestamp(),
       };
@@ -299,31 +299,35 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
 
       setSelectedCompany({ id: docRef.id, ...companyData } as Company);
       localStorage.setItem('selectedCompanyId', docRef.id);
+      return true;
     } catch (error) {
       console.error("Create company error:", error);
       alert("Erreur lors de la création de l'entité. Vérifiez votre connexion.");
+      return false;
     }
   };
 
-  const updateCompany = async (id: string, name: string) => {
+  const updateCompany = async (id: string, name: string): Promise<boolean> => {
     try {
       const { validateStringInput } = await import('../lib/validation');
-      const validation = validateStringInput(name, 2, 50);
+      const validation = validateStringInput(name, 1, 50);
       if (!validation.isValid) {
         alert(validation.error);
-        return;
+        return false;
       }
 
-      if (!auth.currentUser) return;
+      if (!auth.currentUser) return false;
       const { doc, updateDoc } = await import('firebase/firestore');
       const companyRef = doc(db, 'companies', id);
-      await updateDoc(companyRef, { name });
+      await updateDoc(companyRef, { name: name.trim() });
       
       // Automatic Backup System
-      await backupData('COMPANY_UPDATE', { id, name });
+      await backupData('COMPANY_UPDATE', { id, name: name.trim() });
+      return true;
     } catch (error) {
       console.error("Update company error:", error);
       alert("Erreur lors de la mise à jour de l'entité.");
+      return false;
     }
   };
 

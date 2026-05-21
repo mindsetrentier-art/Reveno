@@ -18,30 +18,23 @@ service cloud.firestore {
 
     // --- Validation Helpers ---
     function isValidCompany(data) {
-      return data.keys().hasAll(['name', 'userId', 'createdAt']) &&
-             data.name is string && data.name.size() > 0 &&
-             data.userId == request.auth.uid &&
-             (data.createdAt == request.time || data.createdAt is timestamp);
+      return data.userId == request.auth.uid &&
+             data.name is string && data.name.size() > 0;
     }
 
     function isValidRevenue(data) {
       return data.userId == request.auth.uid &&
-             data.companyId is string &&
-             (data.revenue is number || data.revenue is string) &&
-             (data.createdAt == request.time || !data.keys().has('createdAt'));
+             data.companyId is string;
     }
 
     function isValidDetailedEntry(data) {
       return data.userId == request.auth.uid &&
              data.companyId is string &&
-             data.month is string &&
-             (data.date == request.time || !data.keys().has('date'));
+             data.month is string;
     }
 
     function isValidBackup(data) {
-      return data.userId == request.auth.uid &&
-             data.type is string &&
-             data.payload is string;
+      return data.userId == request.auth.uid;
     }
 
     function isValidGoal(data) {
@@ -52,9 +45,7 @@ service cloud.firestore {
     function isValidTransaction(data) {
       return data.userId == request.auth.uid &&
              data.companyId is string &&
-             data.name is string &&
-             data.type in ['income', 'expense'] &&
-             data.date is timestamp;
+             data.name is string;
     }
 
     // --- Collections ---

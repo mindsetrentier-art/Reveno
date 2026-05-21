@@ -17,6 +17,7 @@ export default function Layout() {
   const [newCompanyName, setNewCompanyName] = useState('');
   const [editName, setEditName] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isSavingCompany, setIsSavingCompany] = useState(false);
 
   const navItems = [
     { name: 'Tableau de bord', path: '/', icon: Home },
@@ -34,23 +35,33 @@ export default function Layout() {
       alert("Vous ne pouvez pas enregistrer plus de 8 entités.");
       return;
     }
+    setIsSavingCompany(true);
     try {
-      await createCompany(newCompanyName);
-      setNewCompanyName('');
-      setIsCreating(false);
+      const success = await createCompany(newCompanyName);
+      if (success) {
+        setNewCompanyName('');
+        setIsCreating(false);
+      }
     } catch (err) {
       console.error(err);
+    } finally {
+      setIsSavingCompany(false);
     }
   };
 
   const handleUpdate = async (id: string) => {
     if (!editName.trim()) return;
+    setIsSavingCompany(true);
     try {
-      await updateCompany(id, editName);
-      setEditingId(null);
-      setEditName('');
+      const success = await updateCompany(id, editName);
+      if (success) {
+        setEditingId(null);
+        setEditName('');
+      }
     } catch (err) {
       console.error(err);
+    } finally {
+      setIsSavingCompany(false);
     }
   };
 
@@ -99,12 +110,22 @@ export default function Layout() {
 
             <AnimatePresence>
               {showCompanySwitch && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 10 }}
-                  className="absolute top-full left-0 sm:left-6 mt-2 w-screen sm:w-72 max-w-[calc(100vw-2rem)] bg-white border border-outline-variant rounded-2xl shadow-2xl p-2 z-50 overflow-hidden"
-                >
+                <>
+                  {/* Backdrop visible on mobile to enhance focus */}
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setShowCompanySwitch(false)}
+                    className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[90] sm:hidden"
+                  />
+
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="fixed sm:absolute top-1/2 sm:top-full left-1/2 sm:left-6 -translate-x-1/2 sm:translate-x-0 -translate-y-1/2 sm:translate-y-0 mt-2 w-[calc(100vw-2rem)] sm:w-72 max-w-sm sm:max-w-none bg-white border border-outline-variant rounded-[24px] sm:rounded-2xl shadow-2xl p-4 sm:p-2 z-[100] sm:z-50 overflow-hidden"
+                  >
                   <div className="max-h-80 overflow-y-auto space-y-1 p-1">
                     {companies.map((c) => (
                       <div key={c.id} className="relative group">
@@ -112,15 +133,24 @@ export default function Layout() {
                           <div className="flex items-center gap-2 p-1 bg-surface rounded-xl">
                             <input 
                               autoFocus
-                              className="flex-grow text-xs bg-transparent outline-none px-2 py-1"
+                              disabled={isSavingCompany}
+                              className="flex-grow text-xs bg-transparent outline-none px-2 py-1 disabled:opacity-60"
                               value={editName}
                               onChange={(e) => setEditName(e.target.value)}
-                              onKeyDown={(e) => e.key === 'Enter' && handleUpdate(c.id)}
+                              onKeyDown={(e) => e.key === 'Enter' && !isSavingCompany && handleUpdate(c.id)}
                             />
-                            <button onClick={() => handleUpdate(c.id)} className="p-1 hover:bg-green-100 text-green-600 rounded-lg">
+                            <button 
+                              onClick={() => !isSavingCompany && handleUpdate(c.id)} 
+                              disabled={isSavingCompany}
+                              className="p-1 hover:bg-green-100 text-green-600 rounded-lg disabled:opacity-50"
+                            >
                               <Check size={14} />
                             </button>
-                            <button onClick={() => setEditingId(null)} className="p-1 hover:bg-red-100 text-red-600 rounded-lg">
+                            <button 
+                              onClick={() => !isSavingCompany && setEditingId(null)} 
+                              disabled={isSavingCompany}
+                              className="p-1 hover:bg-red-100 text-red-600 rounded-lg disabled:opacity-50"
+                            >
                               <X size={14} />
                             </button>
                           </div>
@@ -132,13 +162,13 @@ export default function Layout() {
                                 setShowCompanySwitch(false);
                               }}
                               className={cn(
-                                "flex-grow text-left px-4 py-2.5 rounded-xl text-sm transition-all",
+                                "flex-grow text-left pl-4 pr-16 py-2.5 rounded-xl text-sm transition-all",
                                 selectedCompany?.id === c.id ? "bg-primary-container text-white" : "hover:bg-surface text-on-surface-variant"
                               )}
                             >
                               {c.name}
                             </button>
-                            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
                               <button 
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -169,24 +199,26 @@ export default function Layout() {
                           <label className="text-[10px] uppercase font-bold text-on-surface-variant tracking-widest pl-1">Nouvelle Entité</label>
                           <input 
                             autoFocus
+                            disabled={isSavingCompany}
                             placeholder="Ex: Reveno Holding"
-                            className="w-full text-sm p-3 bg-white border border-outline-variant rounded-xl outline-none focus:border-primary-container transition-all"
+                            className="w-full text-sm p-3 bg-white border border-outline-variant rounded-xl outline-none focus:border-primary-container transition-all disabled:opacity-60"
                             value={newCompanyName}
                             onChange={(e) => setNewCompanyName(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleCreateCompany()}
+                            onKeyDown={(e) => e.key === 'Enter' && !isSavingCompany && handleCreateCompany()}
                           />
                         </div>
                         <div className="flex gap-2">
                           <button 
                             onClick={handleCreateCompany} 
-                            disabled={!newCompanyName.trim()}
+                            disabled={!newCompanyName.trim() || isSavingCompany}
                             className="flex-grow flex items-center justify-center gap-2 text-xs bg-primary-container text-white py-2.5 rounded-xl font-bold shadow-lg shadow-primary-container/20 disabled:opacity-50"
                           >
-                            <Check size={14} /> Valider
+                            <Check size={14} /> {isSavingCompany ? "Validation..." : "Valider"}
                           </button>
                           <button 
-                            onClick={() => setIsCreating(false)} 
-                            className="p-2.5 bg-white border border-outline-variant rounded-xl text-on-surface-variant hover:bg-surface transition-colors"
+                            onClick={() => !isSavingCompany && setIsCreating(false)} 
+                            disabled={isSavingCompany}
+                            className="p-2.5 bg-white border border-outline-variant rounded-xl text-on-surface-variant hover:bg-surface transition-colors disabled:opacity-50"
                           >
                             <X size={14} />
                           </button>
@@ -219,6 +251,7 @@ export default function Layout() {
                     )}
                   </div>
                 </motion.div>
+                </>
               )}
             </AnimatePresence>
           </div>

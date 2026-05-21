@@ -6,7 +6,7 @@ import { useCompany } from '../context/CompanyContext';
 import { backupData } from '../lib/backup';
 import { encryptNumeric, decryptNumeric } from '../lib/encryption';
 import { motion, AnimatePresence } from 'motion/react';
-import { Save, Trash2, Plus, ArrowRight, History, Calculator, CheckCircle2, Edit2, X, Search, Filter as FilterIcon, ChevronDown, ChevronUp, CalendarSync, ArrowUp, ArrowDown } from 'lucide-react';
+import { Save, Trash2, Plus, ArrowRight, History, Calculator, CheckCircle2, Edit2, X, Search, Filter as FilterIcon, ChevronDown, ChevronUp, CalendarSync, ArrowUp, ArrowDown, RotateCcw } from 'lucide-react';
 
 import { cn } from '../lib/utils';
 import { googleSignIn, getAccessToken } from '../lib/firebase';
@@ -32,6 +32,8 @@ export default function DetailedEntry() {
   const [selectedMonth, setSelectedMonth] = useState(MONTHS[new Date().getMonth()]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [isSaving, setIsSaving] = useState(false);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+  const [pendingSaveData, setPendingSaveData] = useState<Record<string, number> | null>(null);
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -120,7 +122,7 @@ export default function DetailedEntry() {
     return Object.keys(amounts).reduce<number>((acc, key) => acc + (parseFloat(amounts[key]) || 0), 0);
   };
 
-  const handleSave = async () => {
+  const handlePreSave = async () => {
     const { validateNumericInput } = await import('../lib/validation');
     
     if (!auth.currentUser || !selectedCompany) return;
@@ -128,10 +130,11 @@ export default function DetailedEntry() {
     const numericBreakdown: Record<string, number> = {};
     let hasValidationError = false;
 
-    (Object.entries(amounts) as [string, string][]).forEach(([key, val]) => {
-      if (val.trim() === '') return;
+    (Object.entries(amounts) as [string, any][]).forEach(([key, val]) => {
+      const stringVal = val === undefined || val === null ? '' : String(val).trim();
+      if (stringVal === '') return;
       
-      const validation = validateNumericInput(val);
+      const validation = validateNumericInput(stringVal);
       if (!validation.isValid) {
         alert(`${CATEGORIES.find(c => c.id === key)?.label}: ${validation.error}`);
         hasValidationError = true;
@@ -149,12 +152,20 @@ export default function DetailedEntry() {
       return;
     }
 
+    setPendingSaveData(numericBreakdown);
+    setShowSaveConfirm(true);
+  };
+
+  const handleConfirmSave = async () => {
+    if (!pendingSaveData || !auth.currentUser || !selectedCompany) return;
+    
+    setShowSaveConfirm(false);
     setIsSaving(true);
     try {
-      const numericTotal = Object.values(numericBreakdown).reduce((a, b) => a + b, 0);
+      const numericTotal = Object.values(pendingSaveData).reduce((a: any, b: any) => (a as number) + (b as number), 0) as number;
       const encryptedBreakdown: Record<string, string> = {};
-      Object.entries(numericBreakdown).forEach(([key, val]) => {
-        encryptedBreakdown[key] = encryptNumeric(val);
+      Object.entries(pendingSaveData).forEach(([key, val]) => {
+        encryptedBreakdown[key] = encryptNumeric(val as number);
       });
 
       const entryData: any = {
@@ -169,12 +180,12 @@ export default function DetailedEntry() {
 
       if (editingId) {
         await updateDoc(doc(db, 'detailed_entries', editingId), entryData);
-        await backupData('DETAILED_ENTRY_UPDATE', { ...entryData, id: editingId, breakdown: numericBreakdown, total: numericTotal });
+        await backupData('DETAILED_ENTRY_UPDATE', { ...entryData, id: editingId, breakdown: pendingSaveData, total: numericTotal });
         setEditingId(null);
       } else {
         entryData.date = serverTimestamp();
         await addDoc(collection(db, 'detailed_entries'), entryData);
-        await backupData('DETAILED_ENTRY_CAPTURE', { ...entryData, breakdown: numericBreakdown, total: numericTotal });
+        await backupData('DETAILED_ENTRY_CAPTURE', { ...entryData, breakdown: pendingSaveData, total: numericTotal });
       }
       
       setAmounts({});
@@ -189,6 +200,7 @@ export default function DetailedEntry() {
       alert('Une erreur est survenue lors de l\'enregistrement. Veuillez vérifier votre connexion.');
     } finally {
       setIsSaving(false);
+      setPendingSaveData(null);
     }
   };
 
@@ -207,6 +219,26 @@ export default function DetailedEntry() {
   const handleCancelEdit = () => {
     setEditingId(null);
     setAmounts({});
+  };
+
+  const handleResetForm = () => {
+    const hasValues = Object.keys(amounts).length > 0 || 
+                      selectedMonth !== MONTHS[new Date().getMonth()] || 
+                      selectedYear !== new Date().getFullYear();
+    if (hasValues) {
+      if (!confirm("Voulez-vous vraiment réinitialiser le formulaire ? Tous les montants saisis et les brouillons locaux seront effacés.")) return;
+    }
+    setAmounts({});
+    setSelectedMonth(MONTHS[new Date().getMonth()]);
+    setSelectedYear(new Date().getFullYear());
+    setEditingId(null);
+    if (selectedCompany) {
+      try {
+        localStorage.removeItem(`draft_entries_${selectedCompany.id}`);
+      } catch (e) {
+        console.error("Draft clear error", e);
+      }
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -451,17 +483,28 @@ export default function DetailedEntry() {
             </div>
 
             <div className="p-6 sm:p-8 bg-surface/50 border-t border-outline-variant flex gap-4">
-              {editingId && (
+              {editingId ? (
                 <button 
+                  type="button"
                   onClick={handleCancelEdit}
                   className="flex-1 bg-white border border-outline-variant text-on-surface-variant py-5 rounded-2xl font-display font-bold uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 hover:bg-background transition-all"
                 >
                   <X size={18} />
                   Annuler
                 </button>
+              ) : (
+                <button 
+                  type="button"
+                  onClick={handleResetForm}
+                  className="flex-1 bg-white border border-outline-variant text-on-surface-variant py-5 rounded-2xl font-display font-bold uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 hover:bg-background transition-all"
+                >
+                  <RotateCcw size={18} />
+                  Réinitialiser
+                </button>
               )}
               <button 
-                onClick={handleSave}
+                type="button"
+                onClick={handlePreSave}
                 disabled={isSaving || calculateTotal() === 0}
                 className={cn(
                   "flex-[2] text-white py-5 rounded-2xl font-display font-bold uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 shadow-xl",
@@ -914,6 +957,85 @@ export default function DetailedEntry() {
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showSaveConfirm && pendingSaveData && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-[32px] p-6 sm:p-8 max-w-md w-full shadow-2xl border border-outline-variant space-y-6 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="w-16 h-16 bg-primary-container/10 text-primary-container rounded-full flex items-center justify-center mx-auto mb-2">
+                <Calculator size={32} />
+              </div>
+              
+              <div className="text-center space-y-2">
+                <h3 className="font-display font-bold text-2xl text-on-surface">
+                  {editingId ? "Confirmer la mise à jour" : "Confirmer l'enregistrement"}
+                </h3>
+                <p className="text-xs font-bold uppercase tracking-widest text-primary-container bg-primary-container/5 px-3 py-1.5 rounded-full inline-block">
+                  Période : {selectedMonth} {selectedYear}
+                </p>
+                <p className="text-xs text-on-surface-variant leading-relaxed">
+                  Veuillez vérifier les montants ci-dessous avant d'enregistrer la session d'entité.
+                </p>
+              </div>
+
+              {/* breakdown */}
+              <div className="bg-background border border-outline-variant rounded-2xl p-4 space-y-3 col-span-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant border-b border-outline-variant pb-2">
+                  Détail par catégorie
+                </p>
+                <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                  {Object.entries(pendingSaveData).map(([key, val]) => {
+                    const category = CATEGORIES.find(c => c.id === key);
+                    return (
+                      <div key={key} className="flex items-center justify-between py-1 text-sm">
+                        <div className="flex items-center gap-2">
+                          <div className={cn("w-2 h-2 rounded-full shrink-0", category?.color || "bg-outline-variant")} />
+                          <span className="font-medium text-on-surface-variant text-xs">{category?.label || key}</span>
+                        </div>
+                        <span className="font-display font-bold text-on-surface">{formatCurrency(val as number)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="border-t border-outline-variant pt-3 flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase text-on-surface-variant">Total cumulé</span>
+                  <span className="font-display font-bold text-xl text-primary-container">
+                    {formatCurrency(Object.values(pendingSaveData).reduce((a: any, b: any) => (a as number) + (b as number), 0) as number)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    setShowSaveConfirm(false);
+                    setPendingSaveData(null);
+                  }}
+                  className="flex-1 py-4 px-4 rounded-xl font-bold bg-surface hover:bg-surface-variant transition-colors text-on-surface-variant text-sm border border-outline-variant"
+                >
+                  Modifier
+                </button>
+                <button
+                  onClick={handleConfirmSave}
+                  className="flex-1 py-4 px-4 rounded-xl font-bold bg-primary-container hover:brightness-110 transition-all text-white text-sm shadow-lg shadow-primary-container/20"
+                >
+                  Enregistrer
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}

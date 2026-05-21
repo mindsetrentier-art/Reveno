@@ -130,6 +130,11 @@ export default function Dashboard() {
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
+          whileHover={{ 
+            y: -4,
+            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.03), 0 8px 10px -6px rgba(0, 0, 0, 0.03)"
+          }}
+          transition={{ type: "spring", stiffness: 300, damping: 25 }}
           className="md:col-span-8 bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-sm border border-outline-variant flex flex-col min-h-[350px] sm:min-h-[400px] relative overflow-hidden"
         >
           <div className="absolute inset-0 dot-grid opacity-10 pointer-events-none"></div>
@@ -196,12 +201,30 @@ export default function Dashboard() {
         {/* Side Stats */}
         <div className="md:col-span-4 space-y-6">
           <motion.div 
-            whileHover={{ y: -5 }}
-            className="bg-white p-6 sm:p-8 rounded-[28px] sm:rounded-[32px] shadow-sm border border-outline-variant space-y-4"
+            whileHover="hover"
+            whileTap="tap"
+            variants={{
+              hover: { 
+                y: -8, 
+                scale: 1.02,
+                boxShadow: "0 25px 30px -5px rgba(0, 0, 0, 0.06), 0 10px 15px -6px rgba(0, 0, 0, 0.06)",
+                borderColor: "var(--color-primary-container)"
+              },
+              tap: { scale: 0.98 }
+            }}
+            transition={{ type: "spring", stiffness: 350, damping: 22 }}
+            className="bg-white p-6 sm:p-8 rounded-[28px] sm:rounded-[32px] shadow-sm border border-outline-variant space-y-4 cursor-pointer transition-colors"
           >
             <div className="flex justify-between items-center text-on-surface-variant">
               <span className="text-[10px] font-bold uppercase tracking-widest">Moyenne Mensuelle</span>
-              <CreditCard size={18} />
+              <motion.div
+                variants={{
+                  hover: { rotate: 12, scale: 1.2, color: "var(--color-primary-container)" }
+                }}
+                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+              >
+                <CreditCard size={18} />
+              </motion.div>
             </div>
             <h4 className="font-display text-3xl sm:text-4xl font-bold tracking-tight">{formatCurrency(avgMonthly)}</h4>
             <div className="flex items-center gap-2 text-primary-container text-[10px] font-bold uppercase tracking-widest">
@@ -211,8 +234,19 @@ export default function Dashboard() {
           </motion.div>
 
           <motion.div 
-            whileHover={{ y: -5 }}
-            className="bg-white p-6 sm:p-8 rounded-[28px] sm:rounded-[32px] shadow-sm border border-outline-variant space-y-4"
+            whileHover="hover"
+            whileTap="tap"
+            variants={{
+              hover: { 
+                y: -8, 
+                scale: 1.02,
+                boxShadow: "0 25px 30px -5px rgba(0, 0, 0, 0.06), 0 10px 15px -6px rgba(0, 0, 0, 0.06)",
+                borderColor: "var(--color-secondary)"
+              },
+              tap: { scale: 0.98 }
+            }}
+            transition={{ type: "spring", stiffness: 350, damping: 22 }}
+            className="bg-white p-6 sm:p-8 rounded-[28px] sm:rounded-[32px] shadow-sm border border-outline-variant space-y-4 cursor-pointer transition-colors"
           >
             <div className="flex justify-between items-center text-on-surface-variant">
               <span className="text-[10px] font-bold uppercase tracking-widest">Objectif Global</span>
@@ -220,7 +254,8 @@ export default function Dashboard() {
                 {isEditingGoal ? (
                   <>
                     <button 
-                      onClick={async () => {
+                      onClick={async (e) => {
+                        e.stopPropagation();
                         const val = parseFloat(newGoalValue);
                         if (isNaN(val)) {
                           alert("Veuillez saisir un nombre valide");
@@ -237,13 +272,20 @@ export default function Dashboard() {
                     >
                       <Check size={14} />
                     </button>
-                    <button onClick={() => setIsEditingGoal(false)} className="p-1 hover:bg-red-50 text-red-600 rounded-md">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsEditingGoal(false);
+                      }} 
+                      className="p-1 hover:bg-red-50 text-red-600 rounded-md"
+                    >
                       <X size={14} />
                     </button>
                   </>
                 ) : (
                   <button 
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setNewGoalValue(goal ? (goal.monthlyGoal).toString() : '0');
                       setIsEditingGoal(true);
                     }}
@@ -252,11 +294,18 @@ export default function Dashboard() {
                     <Edit2 size={14} />
                   </button>
                 )}
-                <Target size={18} className="text-secondary" />
+                <motion.div
+                  variants={{
+                    hover: { rotate: -12, scale: 1.2, color: "var(--color-secondary)" }
+                  }}
+                  transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                >
+                  <Target size={18} className="text-secondary" />
+                </motion.div>
               </div>
             </div>
             {isEditingGoal ? (
-              <div className="flex items-end gap-2">
+              <div className="flex items-end gap-2" onClick={(e) => e.stopPropagation()}>
                 <div className="relative flex-grow">
                   <input 
                     autoFocus
@@ -293,7 +342,16 @@ export default function Dashboard() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
+          whileHover={{ 
+            y: -4,
+            boxShadow: "0 22px 30px -5px rgba(0, 0, 0, 0.04), 0 8px 12px -6px rgba(0, 0, 0, 0.04)"
+          }}
+          transition={{ 
+            type: "spring",
+            stiffness: 300,
+            damping: 25,
+            opacity: { delay: 0.05, duration: 0.3 }
+          }}
           className="lg:col-span-12 bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-sm border border-outline-variant relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 p-8 flex items-center gap-2 pointer-events-none opacity-5">
@@ -384,7 +442,16 @@ export default function Dashboard() {
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.1 }}
+          whileHover={{ 
+            y: -4,
+            boxShadow: "0 22px 30px -5px rgba(0, 0, 0, 0.04), 0 8px 12px -6px rgba(0, 0, 0, 0.04)"
+          }}
+          transition={{ 
+            type: "spring",
+            stiffness: 300,
+            damping: 25,
+            opacity: { delay: 0.1, duration: 0.3 }
+          }}
           className="lg:col-span-12 bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-sm border border-outline-variant"
         >
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
@@ -456,13 +523,18 @@ export default function Dashboard() {
               <h4 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-4">Détails des Catégories</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {expenseBreakdown.sort((a, b) => b.value - a.value).map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-background border border-outline-variant rounded-2xl">
+                  <motion.div 
+                    key={idx} 
+                    whileHover={{ scale: 1.03, x: 3, borderColor: item.color }}
+                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                    className="flex items-center justify-between p-3 bg-background border border-outline-variant rounded-2xl cursor-pointer"
+                  >
                     <div className="flex items-center gap-2 overflow-hidden">
                       <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                       <span className="text-[10px] font-bold uppercase truncate pr-2">{item.name}</span>
                     </div>
                     <span className="text-xs font-display font-bold shrink-0">{formatCurrency(item.value)}</span>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             </div>
@@ -477,7 +549,12 @@ export default function Dashboard() {
          </div>
          <div className="divide-y divide-outline-variant">
             {revenues.slice(0, 4).map((rev) => (
-              <div key={rev.id} className="p-5 sm:p-6 sm:px-8 flex items-center justify-between hover:bg-background transition-colors gap-4">
+              <motion.div 
+                key={rev.id} 
+                whileHover={{ x: 6, backgroundColor: "var(--color-surface)" }}
+                transition={{ type: "spring", stiffness: 450, damping: 28 }}
+                className="p-5 sm:p-6 sm:px-8 flex items-center justify-between hover:bg-background transition-colors gap-4 cursor-pointer"
+              >
                 <div className="flex items-center gap-4 sm:gap-6 min-w-0">
                   <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-background flex items-center justify-center border border-outline-variant text-primary-container shrink-0">
                     <span className="text-[10px] sm:text-xs font-bold font-display">{rev.month.substring(0, 1)}</span>
@@ -491,7 +568,7 @@ export default function Dashboard() {
                   <p className="font-display font-bold text-lg sm:text-xl">{formatCurrency(rev.revenue)}</p>
                   <p className="text-[9px] uppercase font-bold text-secondary tracking-widest">Vérifié</p>
                 </div>
-              </div>
+              </motion.div>
             ))}
          </div>
       </section>
