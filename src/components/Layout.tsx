@@ -7,6 +7,7 @@ import { useCompany } from '../context/CompanyContext';
 import { motion, AnimatePresence } from 'motion/react';
 import Copilot from './Copilot';
 import WeatherWidget from './WeatherWidget';
+import logoUrl from '../assets/images/reveno_logo_1779460450795.png';
 
 export default function Layout() {
   const location = useLocation();
@@ -87,9 +88,7 @@ export default function Layout() {
       <header className="fixed top-0 z-50 w-full bg-surface/80 backdrop-blur-xl border-b border-outline-variant h-16 flex justify-between items-center px-6">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center shrink-0">
-               <Wallet size={18} className="text-on-primary-container" />
-            </div>
+            <img src={logoUrl} alt="Reveno Logo" className="w-8 h-8 rounded-lg object-contain bg-white shrink-0" referrerPolicy="no-referrer" />
             <h1 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-on-surface truncate">Reveno <span className="text-secondary font-medium ml-1 hidden sm:inline">AI</span></h1>
           </div>
 
@@ -124,9 +123,15 @@ export default function Layout() {
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="fixed sm:absolute top-1/2 sm:top-full left-1/2 sm:left-6 -translate-x-1/2 sm:translate-x-0 -translate-y-1/2 sm:translate-y-0 mt-2 w-[calc(100vw-2rem)] sm:w-72 max-w-sm sm:max-w-none bg-white border border-outline-variant rounded-[24px] sm:rounded-2xl shadow-2xl p-4 sm:p-2 z-[100] sm:z-50 overflow-hidden"
+                    className="fixed sm:absolute top-1/2 sm:top-full left-1/2 sm:left-6 -translate-x-1/2 sm:translate-x-0 -translate-y-1/2 sm:translate-y-0 mt-0 sm:mt-2 w-[calc(100vw-2rem)] sm:w-72 max-w-sm sm:max-w-none bg-white border border-outline-variant rounded-[24px] sm:rounded-2xl shadow-2xl p-4 sm:p-2 z-[100] sm:z-50 flex flex-col max-h-[85vh] sm:max-h-none"
                   >
-                  <div className="max-h-80 overflow-y-auto space-y-1 p-1">
+                  <div className="flex justify-between items-center mb-3 sm:hidden px-1">
+                    <h3 className="font-bold text-lg">Vos Entités</h3>
+                    <button onClick={() => setShowCompanySwitch(false)} className="p-2 bg-surface hover:bg-surface-variant rounded-full transition-colors text-on-surface-variant">
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto sm:max-h-80 space-y-1 p-1 min-h-0 overscroll-contain">
                     {companies.map((c) => (
                       <div key={c.id} className="relative group">
                         {editingId === c.id ? (
@@ -192,7 +197,7 @@ export default function Layout() {
                     ))}
                   </div>
                   
-                  <div className="border-t border-outline-variant mt-2 pt-2">
+                  <div className="border-t border-outline-variant mt-2 pt-2 shrink-0">
                     {isCreating ? (
                       <div className="p-2 bg-surface rounded-2xl space-y-3">
                         <div className="space-y-1">

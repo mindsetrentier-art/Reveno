@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { googleSignIn } from '../lib/firebase';
 import { Wallet, TrendingUp, ShieldCheck, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
+import logoUrl from '../assets/images/reveno_logo_1779460450795.png';
 
 export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
@@ -27,7 +28,7 @@ export default function Login() {
         <div className="hidden lg:flex flex-col space-y-12">
             <div className="space-y-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-primary-container rounded-xl flex items-center justify-center text-white font-display font-bold text-2xl shadow-lg shadow-primary-container/20">R</div>
+              <img src={logoUrl} alt="Reveno Logo" className="w-12 h-12 rounded-xl shadow-lg shadow-primary-container/20 object-contain bg-white" referrerPolicy="no-referrer" />
               <h1 className="font-display font-bold text-4xl tracking-tight text-on-surface">Reveno <span className="text-secondary font-medium ml-1">AI</span></h1>
             </div>
             <motion.h2 

@@ -60,6 +60,32 @@ export default function Dashboard() {
     });
   }, [revenues, detailedEntries, cashFlowRange]);
 
+  const annualGrowthData = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const lastYear = currentYear - 1;
+
+    const currentYearRevenues = new Array(12).fill(0);
+    const lastYearRevenues = new Array(12).fill(0);
+
+    revenues.forEach(r => {
+      const year = r.createdAt?.toDate ? r.createdAt.toDate().getFullYear() : currentYear;
+      const monthIndex = MONTHS.indexOf(r.month);
+      if (monthIndex !== -1) {
+        if (year === currentYear) {
+          currentYearRevenues[monthIndex] += r.revenue;
+        } else if (year === lastYear) {
+          lastYearRevenues[monthIndex] += r.revenue;
+        }
+      }
+    });
+
+    return MONTHS.map((month, index) => ({
+      name: month.substring(0, 3).toUpperCase(),
+      currentYear: currentYearRevenues[index],
+      lastYear: lastYearRevenues[index]
+    }));
+  }, [revenues]);
+
   const handleExport = () => {
     if (revenues.length === 0) return;
     
@@ -128,13 +154,13 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         {/* Growth Chart */}
         <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
           whileHover={{ 
             y: -4,
             boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.03), 0 8px 10px -6px rgba(0, 0, 0, 0.03)"
           }}
-          transition={{ type: "spring", stiffness: 300, damping: 25 }}
+          transition={{ type: "spring", stiffness: 300, damping: 25, delay: 0.1 }}
           className="md:col-span-8 bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-sm border border-outline-variant flex flex-col min-h-[350px] sm:min-h-[400px] relative overflow-hidden"
         >
           <div className="absolute inset-0 dot-grid opacity-10 pointer-events-none"></div>
@@ -201,6 +227,8 @@ export default function Dashboard() {
         {/* Side Stats */}
         <div className="md:col-span-4 space-y-6">
           <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             whileHover="hover"
             whileTap="tap"
             variants={{
@@ -212,7 +240,7 @@ export default function Dashboard() {
               },
               tap: { scale: 0.98 }
             }}
-            transition={{ type: "spring", stiffness: 350, damping: 22 }}
+            transition={{ type: "spring", stiffness: 350, damping: 22, delay: 0.2 }}
             className="bg-white p-6 sm:p-8 rounded-[28px] sm:rounded-[32px] shadow-sm border border-outline-variant space-y-4 cursor-pointer transition-colors"
           >
             <div className="flex justify-between items-center text-on-surface-variant">
@@ -234,6 +262,8 @@ export default function Dashboard() {
           </motion.div>
 
           <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             whileHover="hover"
             whileTap="tap"
             variants={{
@@ -245,7 +275,7 @@ export default function Dashboard() {
               },
               tap: { scale: 0.98 }
             }}
-            transition={{ type: "spring", stiffness: 350, damping: 22 }}
+            transition={{ type: "spring", stiffness: 350, damping: 22, delay: 0.3 }}
             className="bg-white p-6 sm:p-8 rounded-[28px] sm:rounded-[32px] shadow-sm border border-outline-variant space-y-4 cursor-pointer transition-colors"
           >
             <div className="flex justify-between items-center text-on-surface-variant">
@@ -335,6 +365,95 @@ export default function Dashboard() {
             </div>
           </motion.div>
         </div>
+      </div>
+
+      {/* Annual Growth Chart */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-4">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          whileHover={{ 
+             y: -4,
+             boxShadow: "0 22px 30px -5px rgba(0, 0, 0, 0.04), 0 8px 12px -6px rgba(0, 0, 0, 0.04)"
+          }}
+          transition={{ type: "spring", stiffness: 300, damping: 25, delay: 0.1 }}
+          className="lg:col-span-12 bg-white p-6 sm:p-8 rounded-[32px] sm:rounded-[40px] shadow-sm border border-outline-variant relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 p-8 flex items-center gap-2 pointer-events-none opacity-5">
+            <TrendingUp size={120} />
+          </div>
+          
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 relative z-10">
+            <div>
+              <h3 className="font-display font-bold text-2xl">Croissance Annuelle des Revenus</h3>
+              <p className="text-on-surface-variant text-sm font-sans opacity-70">Comparatif des revenus par mois, Année N vs Année N-1</p>
+            </div>
+            <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-primary-container"></div>
+                <span>{new Date().getFullYear()}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-secondary"></div>
+                <span>{new Date().getFullYear() - 1}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="h-[300px] sm:h-[400px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={annualGrowthData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                <defs>
+                   <linearGradient id="colorCurrentYear" x1="0" y1="0" x2="0" y2="1">
+                     <stop offset="5%" stopColor="var(--color-primary-container)" stopOpacity={0.3}/>
+                     <stop offset="95%" stopColor="var(--color-primary-container)" stopOpacity={0}/>
+                   </linearGradient>
+                   <linearGradient id="colorLastYear" x1="0" y1="0" x2="0" y2="1">
+                     <stop offset="5%" stopColor="var(--color-secondary)" stopOpacity={0.3}/>
+                     <stop offset="95%" stopColor="var(--color-secondary)" stopOpacity={0}/>
+                   </linearGradient>
+                 </defs>
+                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-outline-variant)" />
+                 <XAxis 
+                   dataKey="name" 
+                   axisLine={false} 
+                   tickLine={false} 
+                   tick={{ fill: 'var(--color-on-surface-variant)', fontSize: 10, fontWeight: 600 }}
+                   dy={10}
+                 />
+                 <YAxis 
+                   axisLine={false} 
+                   tickLine={false}
+                   tick={{ fill: 'var(--color-on-surface-variant)', fontSize: 10 }}
+                   tickFormatter={(value) => `${value > 0 ? value / 1000 + 'k' : value}`}
+                 />
+                 <Tooltip 
+                   contentStyle={{ backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-outline-variant)', borderRadius: '16px' }}
+                   formatter={(value: number, name: string) => [
+                     formatCurrency(value), 
+                     name === 'currentYear' ? `Année ${new Date().getFullYear()}` : `Année ${new Date().getFullYear() - 1}`
+                   ]}
+                 />
+                 <Area 
+                   type="monotone" 
+                   dataKey="lastYear" 
+                   stroke="var(--color-secondary)" 
+                   fillOpacity={1} 
+                   fill="url(#colorLastYear)" 
+                   strokeWidth={2}
+                 />
+                 <Area 
+                   type="monotone" 
+                   dataKey="currentYear" 
+                   stroke="var(--color-primary-container)" 
+                   fillOpacity={1} 
+                   fill="url(#colorCurrentYear)" 
+                   strokeWidth={3}
+                 />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
       </div>
 
       {/* Cash Flow Analysis Section */}
