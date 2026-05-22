@@ -24,10 +24,12 @@ interface WeatherData {
 
 export default function WeatherWidget() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isDiscreet, setIsDiscreet] = useState(false);
   const [data, setData] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const discreetTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchWeather = async (lat: number, lon: number) => {
     try {
@@ -91,12 +93,27 @@ export default function WeatherWidget() {
     }
   };
 
+  const startDiscreetTimer = () => {
+    if (discreetTimerRef.current) clearTimeout(discreetTimerRef.current);
+    discreetTimerRef.current = setTimeout(() => {
+      setIsDiscreet(true);
+    }, 5000);
+  };
+
   useEffect(() => {
     resetTimer();
+    startDiscreetTimer();
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (discreetTimerRef.current) clearTimeout(discreetTimerRef.current);
     };
   }, [isOpen]);
+
+  const handleInteraction = () => {
+    setIsDiscreet(false);
+    startDiscreetTimer();
+    resetTimer();
+  };
 
   const getWeatherIcon = (code: number, size: number = 24) => {
     if (code === 0) return <Sun size={size} className="text-yellow-500" />;
@@ -134,35 +151,38 @@ export default function WeatherWidget() {
   return (
     <div 
       className="flex flex-col items-end relative z-[60]"
-      onMouseEnter={resetTimer}
-      onMouseMove={resetTimer}
+      onMouseEnter={handleInteraction}
+      onMouseMove={handleInteraction}
+      onClick={handleInteraction}
     >
       <motion.button
         onClick={() => setIsOpen(!isOpen)}
-        whileHover={{ scale: 1.02 }}
+        whileHover={!(isDiscreet && !isOpen) ? { scale: 1.02 } : undefined}
+        initial={false}
         className={cn(
-          "h-10 flex items-center gap-3 px-4 rounded-full shadow-sm transition-all border border-outline-variant group",
-          isOpen ? "bg-primary-container text-white border-transparent" : "bg-white text-on-surface-variant hover:bg-surface"
+          "h-10 flex items-center rounded-full shadow-sm transition-all duration-700 border border-outline-variant overflow-hidden group",
+          isOpen ? "bg-primary-container text-white border-transparent" : "bg-white text-on-surface-variant hover:bg-surface",
+          isDiscreet && !isOpen ? "max-w-[8px] gap-0 px-0 opacity-30 hover:opacity-100 hover:max-w-[40px] hover:px-2" : "max-w-[200px] gap-3 px-4 opacity-100"
         )}
       >
         {loading ? (
-          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          <div className={cn("border-2 border-current border-t-transparent rounded-full animate-spin shrink-0", isDiscreet && !isOpen ? "w-0 h-0 opacity-0" : "w-4 h-4")} />
         ) : (
-          <div className="group-hover:scale-110 transition-transform">
+          <div className={cn("group-hover:scale-110 transition-transform shrink-0", isDiscreet && !isOpen ? "w-0 opacity-0" : "")}>
             {data && getWeatherIcon(data.weatherCode, 18)}
           </div>
         )}
-        <div className="flex flex-col items-start leading-none pr-2">
-          <span className="text-[10px] font-black uppercase tracking-tighter">
+        <div className={cn("flex flex-col items-start leading-none pr-2 shrink-0 transition-opacity", isDiscreet && !isOpen ? "opacity-0 invisible w-0" : "opacity-100 visible text-left")}>
+          <span className="text-[10px] font-black uppercase tracking-tighter whitespace-nowrap">
             {loading ? 'Synchro...' : error || (data ? `${data.temperature}°C` : 'Météo')}
           </span>
           {data && (
-            <span className="text-[8px] font-bold uppercase opacity-50 tracking-widest mt-0.5">
+            <span className="text-[8px] font-bold uppercase opacity-50 tracking-widest mt-0.5 whitespace-nowrap">
               AQI: {data.pm10 < 50 ? 'Pritstine' : 'Moyen'}
             </span>
           )}
         </div>
-        <div className={cn("transition-transform duration-500", isOpen && "rotate-180")}>
+        <div className={cn("transition-transform duration-500 shrink-0", isOpen && "rotate-180", isDiscreet && !isOpen ? "opacity-0 w-0" : "")}>
            <ChevronRight size={14} />
         </div>
       </motion.button>

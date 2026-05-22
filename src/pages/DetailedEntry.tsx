@@ -12,7 +12,7 @@ import { cn } from '../lib/utils';
 import { googleSignIn, getAccessToken } from '../lib/firebase';
 import { createCalendarEvent } from '../lib/googleCalendar';
 
-import { CATEGORIES, MONTHS, YEARS } from '../constants';
+import { MONTHS, YEARS } from '../constants';
 
 interface DetailedEntryData {
   id: string;
@@ -27,7 +27,7 @@ interface DetailedEntryData {
 }
 
 export default function DetailedEntry() {
-  const { selectedCompany, detailedEntries: entries, transactions, loading: contextLoading } = useCompany();
+  const { selectedCompany, detailedEntries: entries, transactions, loading: contextLoading, categories, updateCategories } = useCompany();
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [selectedMonth, setSelectedMonth] = useState(MONTHS[new Date().getMonth()]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -36,6 +36,7 @@ export default function DetailedEntry() {
   const [pendingSaveData, setPendingSaveData] = useState<Record<string, number> | null>(null);
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showManageCategories, setShowManageCategories] = useState(false);
 
   // Transaction Entity States
   const [transName, setTransName] = useState('');
@@ -60,7 +61,7 @@ export default function DetailedEntry() {
       // Search by month, year, or category IDs present in breakdown
       const monthSearch = entry.month.toLowerCase().includes(searchQuery.toLowerCase());
       const catSearch = Object.keys(entry.breakdown).some(catId => 
-        CATEGORIES.find(c => c.id === catId)?.label.toLowerCase().includes(searchQuery.toLowerCase())
+        categories.find(c => c.id === catId)?.label.toLowerCase().includes(searchQuery.toLowerCase())
       );
       const matchesSearch = monthSearch || catSearch;
 
@@ -136,7 +137,7 @@ export default function DetailedEntry() {
       
       const validation = validateNumericInput(stringVal);
       if (!validation.isValid) {
-        alert(`${CATEGORIES.find(c => c.id === key)?.label}: ${validation.error}`);
+        alert(`${categories.find(c => c.id === key)?.label}: ${validation.error}`);
         hasValidationError = true;
         return;
       }
@@ -294,7 +295,7 @@ export default function DetailedEntry() {
 
       // Format current breakdown for description
       const breakdownDesc = Object.entries(entry.breakdown)
-        .map(([k, v]) => `- ${CATEGORIES.find(c => c.id === k)?.label}: ${formatCurrency(v as number)}`)
+        .map(([k, v]) => `- ${categories.find(c => c.id === k)?.label || k}: ${formatCurrency(v as number)}`)
         .join('\n');
 
       // Use entry date or default to 1st of its month
@@ -453,7 +454,15 @@ export default function DetailedEntry() {
             </div>
             
             <div className="p-4 sm:p-8 space-y-4">
-              {CATEGORIES.map((cat) => (
+              <div className="flex justify-end mb-2">
+                <button 
+                  onClick={() => setShowManageCategories(true)}
+                  className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-secondary hover:text-primary-container transition-colors"
+                >
+                  Gérer les modules
+                </button>
+              </div>
+              {categories.map((cat) => (
                 <div key={cat.id} className="group flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 p-4 rounded-2xl hover:bg-background transition-all border border-outline-variant sm:border-transparent hover:border-outline-variant bg-surface/30 sm:bg-transparent">
                   <div className="flex items-center gap-3">
                     <div className={cn("w-2 h-8 sm:h-10 rounded-full shrink-0", cat.color)} />
@@ -774,7 +783,7 @@ export default function DetailedEntry() {
                       <div className="space-y-2">
                         <label className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant">Catégories</label>
                         <div className="flex flex-wrap gap-1.5">
-                          {CATEGORIES.map(cat => (
+                          {categories.map(cat => (
                             <button
                               key={cat.id}
                               onClick={() => toggleCategoryFilter(cat.id)}
@@ -812,7 +821,7 @@ export default function DetailedEntry() {
                   <span>{filteredEntries.length} Saisies filtrées</span>
                 </div>
                 <div className="h-3 w-full bg-background rounded-full overflow-hidden flex border border-outline-variant">
-                  {CATEGORIES.map(cat => {
+                  {categories.map(cat => {
                     const totalForCat = filteredEntries.reduce((acc, entry) => acc + (entry.breakdown[cat.id] || 0), 0);
                     const grandTotal = filteredEntries.reduce((acc, entry) => acc + entry.total, 0);
                     if (grandTotal === 0) return null;
@@ -823,7 +832,7 @@ export default function DetailedEntry() {
                         key={cat.id}
                         initial={{ width: 0 }}
                         animate={{ width: `${width}%` }}
-                        className={cn("h-full", CATEGORIES.find(c => c.id === cat.id)?.color?.startsWith('bg-') ? cat.color : `bg-[${cat.color}]`)}
+                        className={cn("h-full", categories.find(c => c.id === cat.id)?.color?.startsWith('bg-') ? cat.color : `bg-[${cat.color}]`)}
                         title={`${cat.label}: ${formatCurrency(totalForCat)}`}
                       />
                     );
@@ -923,9 +932,9 @@ export default function DetailedEntry() {
                               <div className="flex flex-wrap gap-2">
                                 {(Object.entries(entry.breakdown) as [string, number][]).map(([key, val]) => (
                                   <div key={key} className="bg-white border border-outline-variant px-3 py-1 rounded-lg flex items-center gap-2">
-                                    <div className={cn("w-1.5 h-1.5 rounded-full", CATEGORIES.find(c => c.id === key)?.color)} />
+                                    <div className={cn("w-1.5 h-1.5 rounded-full", categories.find(c => c.id === key)?.color || 'bg-gray-400')} />
                                     <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-tighter">
-                                      {CATEGORIES.find(c => c.id === key)?.id.toUpperCase()}: {formatCurrency(val)}
+                                      {(categories.find(c => c.id === key)?.id || key).toUpperCase()}: {formatCurrency(val)}
                                     </span>
                                   </div>
                                 ))}
@@ -995,7 +1004,7 @@ export default function DetailedEntry() {
                 </p>
                 <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
                   {Object.entries(pendingSaveData).map(([key, val]) => {
-                    const category = CATEGORIES.find(c => c.id === key);
+                    const category = categories.find(c => c.id === key);
                     return (
                       <div key={key} className="flex items-center justify-between py-1 text-sm">
                         <div className="flex items-center gap-2">
@@ -1037,6 +1046,13 @@ export default function DetailedEntry() {
         )}
       </AnimatePresence>
 
+      <ManageCategoriesModal 
+        isOpen={showManageCategories} 
+        onClose={() => setShowManageCategories(false)} 
+        categories={categories} 
+        updateCategories={updateCategories}
+      />
+
       <button
         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         className="fixed sm:bottom-8 bottom-28 right-6 sm:right-8 w-14 h-14 bg-primary-container text-white rounded-full shadow-lg shadow-primary-container/30 flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-40 group"
@@ -1044,6 +1060,80 @@ export default function DetailedEntry() {
       >
         <Plus size={24} className="group-hover:rotate-90 transition-transform duration-300" />
       </button>
+    </div>
+  );
+}
+
+function ManageCategoriesModal({ isOpen, onClose, categories, updateCategories }: any) {
+  const [localCategories, setLocalCategories] = useState<any[]>(categories);
+
+  useEffect(() => {
+    setLocalCategories(categories);
+  }, [categories, isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleUpdate = (idx: number, field: string, value: string) => {
+    const updated = [...localCategories];
+    updated[idx] = { ...updated[idx], [field]: value };
+    setLocalCategories(updated);
+  };
+
+  const handleRemove = (idx: number) => {
+    const updated = localCategories.filter((_, i) => i !== idx);
+    setLocalCategories(updated);
+  };
+
+  const handleAdd = () => {
+    setLocalCategories([...localCategories, { id: `cat_${Date.now()}`, label: 'Nouveau Module', color: '#888888' }]);
+  };
+
+  const handleSave = () => {
+    // Only accept categories with labels and IDs
+    const cleaned = localCategories.filter(c => c.label.trim() !== '');
+    updateCategories(cleaned);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-[32px] p-6 max-w-lg w-full shadow-2xl border border-outline-variant max-h-[90vh] overflow-hidden flex flex-col">
+        <h2 className="font-display font-bold text-2xl mb-4">Gérer les modules</h2>
+        <div className="overflow-y-auto space-y-4 pr-2 flex-grow">
+          {localCategories.map((c, i) => (
+            <div key={c.id} className="flex items-center gap-3 bg-surface p-3 rounded-2xl">
+               <input 
+                 type="color" 
+                 value={c.color} 
+                 onChange={(e) => handleUpdate(i, 'color', e.target.value)}
+                 className="w-8 h-8 rounded-full border-none outline-none cursor-pointer p-0 bg-transparent shrink-0" 
+               />
+               <input 
+                 type="text" 
+                 value={c.label} 
+                 onChange={(e) => handleUpdate(i, 'label', e.target.value)}
+                 className="flex-grow bg-white border border-outline-variant rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary-container"
+                 placeholder="Nom du module"
+               />
+               <button onClick={() => handleRemove(i)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                 <X size={18} />
+               </button>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 pt-4 border-t border-outline-variant space-y-3 shrink-0">
+          <button 
+            onClick={handleAdd}
+            className="w-full py-3 bg-surface border border-outline-variant border-dashed rounded-xl text-on-surface-variant text-sm font-bold uppercase tracking-widest hover:bg-background transition-colors"
+          >
+            + Ajouter un module
+          </button>
+          <div className="flex gap-3 pt-2">
+            <button onClick={onClose} className="flex-1 py-3 text-sm font-bold text-on-surface-variant hover:bg-surface rounded-xl">Annuler</button>
+            <button onClick={handleSave} className="flex-1 py-3 bg-primary-container text-white text-sm font-bold rounded-xl shadow-lg shadow-primary-container/30 hover:scale-[1.02] active:scale-[0.98] transition-all">Enregistrer</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -7,10 +7,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useCompany } from '../context/CompanyContext';
 import { useState, useMemo } from 'react';
 import WeatherWidget from '../components/WeatherWidget';
-import { CATEGORIES, MONTHS, YEARS } from '../constants';
+import { MONTHS, YEARS } from '../constants';
 
 export default function Dashboard() {
-  const { selectedCompany, revenues, detailedEntries, goal, loading: contextLoading, updateGoal } = useCompany();
+  const { selectedCompany, revenues, detailedEntries, goal, loading: contextLoading, updateGoal, categories } = useCompany();
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [newGoalValue, setNewGoalValue] = useState('');
 
@@ -35,7 +35,7 @@ export default function Dashboard() {
       }
     });
 
-    return CATEGORIES.map(cat => ({
+    return categories.map(cat => ({
       name: cat.label,
       value: totals[cat.id] || 0,
       color: cat.color

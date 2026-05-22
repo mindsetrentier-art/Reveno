@@ -1,15 +1,23 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { backupData } from '../lib/backup';
 import { decryptNumeric } from '../lib/encryption';
+import { CATEGORIES as DEFAULT_CATEGORIES } from '../constants';
+
+export interface CategoryItem {
+  id: string;
+  label: string;
+  color: string;
+}
 
 export interface Company {
   id: string;
   name: string;
   userId: string;
   createdAt: any;
+  categories?: CategoryItem[];
 }
 
 export interface Revenue {
@@ -67,6 +75,8 @@ interface CompanyContextType {
   deleteCompany: (id: string) => Promise<void>;
   updateGoal: (monthlyGoal: number) => Promise<void>;
   updateBudget: (month: string, year: number, targetRevenue: number, expenseLimit: number) => Promise<void>;
+  categories: CategoryItem[];
+  updateCategories: (newCategories: CategoryItem[]) => Promise<void>;
 }
 
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
@@ -450,6 +460,21 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const categories = selectedCompany?.categories || DEFAULT_CATEGORIES;
+
+  const updateCategories = async (newCategories: CategoryItem[]) => {
+    if (!selectedCompany) return;
+    try {
+      const companyRef = doc(db, 'companies', selectedCompany.id);
+      await updateDoc(companyRef, { categories: newCategories });
+      setSelectedCompany({ ...selectedCompany, categories: newCategories });
+      await backupData('CATEGORIES_UPDATE', { companyId: selectedCompany.id, categories: newCategories });
+    } catch (error) {
+      console.error("Update categories error:", error);
+      alert("Erreur lors de la mise à jour des modules.");
+    }
+  };
+
   return (
     <CompanyContext.Provider value={{ 
       companies, 
@@ -465,7 +490,9 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       updateCompany,
       deleteCompany,
       updateGoal,
-      updateBudget
+      updateBudget,
+      categories,
+      updateCategories
     }}>
       {children}
     </CompanyContext.Provider>

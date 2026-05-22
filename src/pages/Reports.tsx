@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useCompany } from '../context/CompanyContext';
-import { CATEGORIES, MONTHS, YEARS } from '../constants';
+import { MONTHS, YEARS } from '../constants';
 import { formatCurrency, downloadCSV, cn } from '../lib/utils';
 import { exportToPDF } from '../lib/pdfExport';
 import { FileText, Download, Calendar, Filter, ChevronRight, TrendingUp, TrendingDown, Clock, Search, Scale, ArrowRight } from 'lucide-react';
@@ -12,7 +12,7 @@ import { DayPicker, DateRange } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 
 export default function Reports() {
-  const { selectedCompany, revenues, detailedEntries, loading } = useCompany();
+  const { selectedCompany, revenues, detailedEntries, loading, categories } = useCompany();
   
   // States
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
@@ -186,7 +186,7 @@ export default function Reports() {
     const catBreakdownB = getCatBreakdown(startB, endB);
 
     // Prepare chart data for category comparison
-    const categoryChartData = CATEGORIES.map(cat => ({
+    const categoryChartData = categories.map(cat => ({
       name: cat.label,
       A: catBreakdownA[cat.id] || 0,
       B: catBreakdownB[cat.id] || 0
@@ -762,7 +762,7 @@ export default function Reports() {
               {(Object.entries(filteredData.categoryBreakdown) as [string, number][])
                 .sort((a, b) => b[1] - a[1])
                 .map(([catId, amount]) => {
-                  const cat = CATEGORIES.find(c => c.id === catId);
+                  const cat = categories.find(c => c.id === catId);
                   const percentage = (amount / (filteredData.summary.expense || 1)) * 100;
                   return (
                     <div key={catId} className="space-y-1.5">
