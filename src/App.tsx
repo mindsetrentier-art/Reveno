@@ -3,6 +3,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import { auth } from './lib/firebase';
 import { CompanyProvider } from './context/CompanyContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Pages
 import Login from './pages/Login';
@@ -36,24 +37,26 @@ export default function App() {
   }
 
   return (
-    <Router>
-      <CompanyProvider>
-        <Routes>
-          <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
-          
-          <Route element={user ? <Layout /> : <Navigate to="/login" />}>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/revenue" element={<Revenue />} />
-            <Route path="/saisie" element={<DetailedEntry />} />
-            <Route path="/ai" element={<AIIntelligence />} />
-            <Route path="/backups" element={<Backups />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/budget" element={<Budget />} />
-          </Route>
+    <ErrorBoundary>
+      <Router>
+        <CompanyProvider>
+          <Routes>
+            <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
+            
+            <Route element={user ? <Layout /> : <Navigate to="/login" />}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/revenue" element={<Revenue />} />
+              <Route path="/saisie" element={<DetailedEntry />} />
+              <Route path="/ai" element={<AIIntelligence />} />
+              <Route path="/backups" element={<Backups />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/budget" element={<Budget />} />
+            </Route>
 
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </CompanyProvider>
-    </Router>
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </CompanyProvider>
+      </Router>
+    </ErrorBoundary>
   );
 }

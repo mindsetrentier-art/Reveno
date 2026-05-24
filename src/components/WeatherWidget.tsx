@@ -74,13 +74,21 @@ export default function WeatherWidget() {
   };
 
   useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => fetchWeather(pos.coords.latitude, pos.coords.longitude),
-        () => setError('Localisation requise')
-      );
-    } else {
-      setError('Géo non supportée');
+    try {
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => fetchWeather(pos.coords.latitude, pos.coords.longitude),
+          (err) => {
+            console.warn('Geolocation warning callback:', err);
+            setError('Localisation requise');
+          }
+        );
+      } else {
+        setError('Géo non supportée');
+      }
+    } catch (err) {
+      console.error('Geolocation access error guarded:', err);
+      setError('Géo bloquée');
     }
   }, []);
 
