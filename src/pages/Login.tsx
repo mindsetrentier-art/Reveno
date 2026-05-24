@@ -59,7 +59,29 @@ export default function Login() {
         </div>
 
         {/* Right Side: Login Form */}
-        <div className="flex flex-col items-center lg:items-end">
+        <div className="flex flex-col items-center lg:items-end w-full">
+          {/* Brand/Logo for Mobile (Hidden on Desktop because desktop shows it on the left) */}
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center gap-4 mb-8 lg:hidden text-center"
+          >
+            <img 
+              src={logoUrl} 
+              alt="Reveno Logo" 
+              className="w-16 h-16 rounded-[22px] shadow-xl shadow-primary-container/20 object-contain bg-white ring-4 ring-white" 
+              referrerPolicy="no-referrer" 
+            />
+            <div className="space-y-1">
+              <h1 className="font-display font-black text-4xl tracking-tight text-on-surface">
+                Reveno <span className="text-secondary font-medium ml-1">AI</span>
+              </h1>
+              <p className="text-xs text-on-surface-variant font-medium uppercase tracking-widest bg-primary-container/10 text-[#5A5A40] px-3.5 py-1 rounded-full w-fit mx-auto">
+                Gestion de Trésorerie
+              </p>
+            </div>
+          </motion.div>
+
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
