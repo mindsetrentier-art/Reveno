@@ -5,6 +5,7 @@ import { formatCurrency, downloadCSV, cn } from '../lib/utils';
 import { exportToPDF } from '../lib/pdfExport';
 import { FileText, Download, Calendar, Filter, ChevronRight, TrendingUp, TrendingDown, Clock, Search, Scale, ArrowRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
+import ChartContainer from '../components/ChartContainer';
 import { motion, AnimatePresence } from 'motion/react';
 import { format, isWithinInterval, parseISO, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, startOfDay, endOfDay, subDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -635,9 +636,9 @@ export default function Reports() {
             </div>
 
             <div className="lg:col-span-8 flex flex-col gap-12">
-               <div className="h-[300px]">
+               <div className="h-[300px] w-full min-w-0 min-h-[300px]">
                 {comparisonData ? (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ChartContainer aspect={1.5}>
                     <BarChart data={comparisonData.chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-outline-variant)" />
                       <XAxis 
@@ -677,7 +678,7 @@ export default function Reports() {
                         barSize={40} 
                       />
                     </BarChart>
-                  </ResponsiveContainer>
+                  </ChartContainer>
                 ) : (
                   <div className="flex items-center justify-center h-full text-on-surface-variant opacity-40 font-bold uppercase tracking-widest">
                     Données indisponibles
@@ -686,10 +687,10 @@ export default function Reports() {
                </div>
 
                {/* Category Comparison chart */}
-               <div className="h-[350px]">
+               <div className="h-[350px] w-full min-w-0 min-h-[350px]">
                   <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] mb-4 text-center">Comparatif des dépenses par catégorie</h4>
                   {comparisonData && comparisonData.categoryChartData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ChartContainer aspect={1.5}>
                       <BarChart layout="vertical" data={comparisonData.categoryChartData} margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--color-outline-variant)" />
                         <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
@@ -701,7 +702,7 @@ export default function Reports() {
                         <Bar name="Période A" dataKey="A" fill="var(--color-primary-container)" radius={[0, 4, 4, 0]} />
                         <Bar name="Période B" dataKey="B" fill="var(--color-secondary)" radius={[0, 4, 4, 0]} />
                       </BarChart>
-                    </ResponsiveContainer>
+                    </ChartContainer>
                   ) : (
                     <div className="flex items-center justify-center h-full text-on-surface-variant opacity-20 text-[10px] font-bold uppercase tracking-widest">
                       Aucune dépense par catégorie à comparer

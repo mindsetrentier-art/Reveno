@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useCompany } from '../context/CompanyContext';
 import { useState, useMemo } from 'react';
 import WeatherWidget from '../components/WeatherWidget';
+import ChartContainer from '../components/ChartContainer';
 import { MONTHS, YEARS } from '../constants';
 
 export default function Dashboard() {
@@ -191,8 +192,8 @@ export default function Dashboard() {
             </div>
           </div>
           
-          <div className="flex-grow relative z-10">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="flex-grow w-full min-w-0 min-h-[250px] sm:min-h-[300px] h-[250px] sm:h-[300px] relative z-10">
+            <ChartContainer aspect={1.5}>
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-outline-variant)" />
                 <XAxis 
@@ -220,7 +221,7 @@ export default function Dashboard() {
                   ))}
                 </Bar>
               </BarChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           </div>
         </motion.div>
 
@@ -400,8 +401,8 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="h-[300px] sm:h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[300px] sm:h-[400px] w-full min-w-0 min-h-[300px] sm:min-h-[400px]">
+            <ChartContainer aspect={1.5}>
               <AreaChart data={annualGrowthData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                 <defs>
                    <linearGradient id="colorCurrentYear" x1="0" y1="0" x2="0" y2="1">
@@ -451,7 +452,7 @@ export default function Dashboard() {
                    strokeWidth={3}
                  />
               </AreaChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           </div>
         </motion.div>
       </div>
@@ -501,9 +502,9 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="h-[300px] sm:h-[400px]">
+          <div className="h-[300px] sm:h-[400px] w-full min-w-0 min-h-[300px] sm:min-h-[400px]">
             {cashFlowData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+              <ChartContainer aspect={1.5}>
                 <AreaChart data={cashFlowData}>
                   <defs>
                     <linearGradient id="colorCashFlow" x1="0" y1="0" x2="0" y2="1">
@@ -546,7 +547,7 @@ export default function Dashboard() {
                     fill="transparent"
                   />
                 </AreaChart>
-              </ResponsiveContainer>
+              </ChartContainer>
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-on-surface-variant/40">
                 <p className="text-sm font-bold uppercase tracking-widest">Données de trésorerie insuffisantes</p>
@@ -599,9 +600,9 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-            <div className="h-[300px] relative">
+            <div className="h-[300px] relative w-full min-w-0 min-h-[300px]">
               {expenseBreakdown.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ChartContainer aspect={1.5}>
                   <PieChart>
                     <Pie
                       data={expenseBreakdown}
@@ -621,7 +622,7 @@ export default function Dashboard() {
                       contentStyle={{ backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-outline-variant)', borderRadius: '16px' }}
                     />
                   </PieChart>
-                </ResponsiveContainer>
+                </ChartContainer>
               ) : (
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-on-surface-variant/40">
                   <CreditCard size={48} className="mb-4 opacity-20" />

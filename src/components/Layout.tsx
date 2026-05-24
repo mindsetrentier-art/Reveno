@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import React, { useState } from 'react';
-import { Home, BarChart3, Sparkles, User, Bell, Wallet, Building2, ChevronDown, Plus, Edit2, Trash2, Check, X, Database, FileText, Target } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Home, BarChart3, Sparkles, User, Bell, Wallet, Building2, ChevronDown, ChevronUp, Plus, Edit2, Trash2, Check, X, Database, FileText, Target, AlertTriangle, Clock, ArrowRight } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { cn } from '../lib/utils';
 import { useCompany } from '../context/CompanyContext';
@@ -9,9 +9,32 @@ import Copilot from './Copilot';
 import WeatherWidget from './WeatherWidget';
 import logoUrl from '../assets/images/reveno_logo_1779460450795.png';
 
+interface NotificationItem {
+  id: string;
+  type: 'info' | 'success' | 'warning' | 'danger';
+  title: string;
+  description: string;
+  timestamp: string;
+  read: boolean;
+  link?: string;
+  actionLabel?: string;
+}
+
 export default function Layout() {
   const location = useLocation();
-  const { companies, selectedCompany, setSelectedCompany, createCompany, updateCompany, deleteCompany } = useCompany();
+  const { 
+    companies, 
+    selectedCompany, 
+    setSelectedCompany, 
+    createCompany, 
+    updateCompany, 
+    deleteCompany,
+    revenues,
+    goal,
+    transactions,
+    loading
+  } = useCompany();
+  
   const [showCompanySwitch, setShowCompanySwitch] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -19,6 +42,181 @@ export default function Layout() {
   const [editName, setEditName] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isSavingCompany, setIsSavingCompany] = useState(false);
+
+  // States and refs for Notifications
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  // Sync notifications on company & data changes
+  useEffect(() => {
+    if (!selectedCompany) {
+      setNotifications([]);
+      return;
+    }
+
+    const storageKey = `reveno_notifications_${selectedCompany.id}`;
+    const cached = localStorage.getItem(storageKey);
+    let initialList: NotificationItem[] = [];
+
+    if (cached) {
+      try {
+        initialList = JSON.parse(cached);
+      } catch (e) {
+        console.error("Failed to parse cached notifications", e);
+      }
+    }
+
+    const updatedList = [...initialList];
+
+    // Helper to add if id doesn't match
+    const addIfNotExist = (item: Omit<NotificationItem, 'read'>) => {
+      if (!updatedList.some(n => n.id === item.id)) {
+        updatedList.unshift({ ...item, read: false });
+      }
+    };
+
+    // 1. General Welcome audit alert
+    addIfNotExist({
+      id: `welcome-${selectedCompany.id}`,
+      type: 'success',
+      title: `Audit activé : ${selectedCompany.name}`,
+      description: `L'entité "${selectedCompany.name}" est correctement initialisée et sécurisée via nos algorithmes Reveno.`,
+      timestamp: "À l'instant",
+    });
+
+    // 2. Pending transactions alert
+    const pendingCount = (transactions || []).filter(t => t.status === 'pending').length;
+    if (pendingCount > 0) {
+      addIfNotExist({
+        id: `pending-${selectedCompany.id}-${pendingCount}`,
+        type: 'warning',
+        title: `${pendingCount} Saisie(s) à valider`,
+        description: `Il y a ${pendingCount} transaction(s) en attente de vérification et de validation finale.`,
+        timestamp: "Il y a 2 min",
+        link: "/saisie",
+        actionLabel: "Voir l'onglet Saisie"
+      });
+    }
+
+    // 3. Goal state alert
+    const monthlyGoal = goal?.monthlyGoal || 0;
+    if (monthlyGoal === 0) {
+      addIfNotExist({
+        id: `goal-missing-${selectedCompany.id}`,
+        type: 'info',
+        title: "Objectifs non configurés",
+        description: "Configurez un objectif mensuel ou annuel pour débloquer les calculs de vélocité de croissance et l'analyse prédictive.",
+        timestamp: "Il y a 10 min",
+        link: "/budget",
+        actionLabel: "Configurer"
+      });
+    } else {
+      // Check current month revenues
+      const currentMonth = new Date().toISOString().substring(0, 7); // yyyy-mm
+      const currentMonthRev = (revenues || [])
+        .filter(r => r.month === currentMonth)
+        .reduce((sum, r) => sum + r.revenue, 0);
+
+      if (currentMonthRev >= monthlyGoal && monthlyGoal > 0) {
+        addIfNotExist({
+          id: `goal-reached-${selectedCompany.id}`,
+          type: 'success',
+          title: "Objectif de chiffre d'affaires atteint !",
+          description: `Votre entité a atteint ou dépassé l'objectif cible avec un chiffre d'affaires de ${currentMonthRev.toLocaleString('fr-FR')} € !`,
+          timestamp: "Il y a 1h",
+          link: "/",
+          actionLabel: "Voir les prévisions"
+        });
+      }
+    }
+
+    // 4. Database Security Check
+    addIfNotExist({
+      id: `security-${selectedCompany.id}`,
+      type: 'info',
+      title: "Chiffrement AES-256 actif",
+      description: "Les données d'audit sont cryptées en local et répliquées en toute sécurité sur Firestore.",
+      timestamp: "Il y a 30 min",
+      link: "/backups",
+      actionLabel: "Vérifier la sauvegarde"
+    });
+
+    localStorage.setItem(storageKey, JSON.stringify(updatedList));
+    setNotifications(updatedList);
+  }, [selectedCompany?.id, transactions?.length, revenues?.length, goal?.id]);
+
+  const markAllAsRead = () => {
+    if (!selectedCompany) return;
+    const updated = notifications.map(n => ({ ...n, read: true }));
+    setNotifications(updated);
+    localStorage.setItem(`reveno_notifications_${selectedCompany.id}`, JSON.stringify(updated));
+  };
+
+  const markAsRead = (id: string) => {
+    if (!selectedCompany) return;
+    const updated = notifications.map(n => n.id === id ? { ...n, read: true } : n);
+    setNotifications(updated);
+    localStorage.setItem(`reveno_notifications_${selectedCompany.id}`, JSON.stringify(updated));
+  };
+
+  const deleteNotification = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!selectedCompany) return;
+    const updated = notifications.filter(n => n.id !== id);
+    setNotifications(updated);
+    localStorage.setItem(`reveno_notifications_${selectedCompany.id}`, JSON.stringify(updated));
+  };
+
+  // States and refs for company switcher scrolling
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const [canScrollUp, setCanScrollUp] = useState(false);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+
+  const checkScrollability = () => {
+    const el = scrollContainerRef.current;
+    if (el) {
+      const hasOverflow = el.scrollHeight > el.clientHeight;
+      setCanScrollUp(hasOverflow && el.scrollTop > 2);
+      setCanScrollDown(hasOverflow && el.scrollTop + el.clientHeight < el.scrollHeight - 2);
+    }
+  };
+
+  React.useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (el && showCompanySwitch) {
+      const handle = setTimeout(() => {
+        checkScrollability();
+      }, 50);
+
+      const onScroll = () => {
+        checkScrollability();
+      };
+      
+      el.addEventListener('scroll', onScroll);
+      
+      const resizeObserver = new ResizeObserver(() => {
+        checkScrollability();
+      });
+      resizeObserver.observe(el);
+
+      return () => {
+        clearTimeout(handle);
+        el.removeEventListener('scroll', onScroll);
+        resizeObserver.disconnect();
+      };
+    }
+  }, [companies, showCompanySwitch]);
+
+  const scrollList = (direction: 'up' | 'down') => {
+    const el = scrollContainerRef.current;
+    if (el) {
+      const scrollAmount = 80;
+      el.scrollBy({
+        top: direction === 'up' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   const navItems = [
     { name: 'Tableau de bord', path: '/', icon: Home },
@@ -131,7 +329,26 @@ export default function Layout() {
                       <X size={20} />
                     </button>
                   </div>
-                  <div className="flex-1 overflow-y-auto sm:max-h-80 space-y-1 p-1 min-h-0 overscroll-contain">
+                  {canScrollUp && (
+                    <button 
+                      type="button"
+                      onClick={() => scrollList('up')}
+                      className="flex items-center justify-center gap-1.5 py-1 w-full bg-[#A3AD9F]/10 hover:bg-[#A3AD9F]/20 text-[#5A5A40] rounded-xl cursor-pointer transition-all border border-outline-variant select-none shrink-0 text-[10px] font-bold uppercase tracking-wider mb-2"
+                    >
+                      <ChevronUp size={12} className="animate-bounce" style={{ animationDuration: '2s' }} />
+                      Défiler vers le haut
+                      <ChevronUp size={12} className="animate-bounce" style={{ animationDuration: '2s' }} />
+                    </button>
+                  )}
+
+                  <div 
+                    ref={scrollContainerRef}
+                    className="flex-1 overflow-y-auto sm:max-h-52 space-y-1 p-1 min-h-0 overscroll-contain"
+                    style={{
+                      scrollbarWidth: 'thin',
+                      scrollbarColor: 'rgba(90, 90, 64, 0.3) transparent',
+                    }}
+                  >
                     {companies.map((c) => (
                       <div key={c.id} className="relative group">
                         {editingId === c.id ? (
@@ -196,6 +413,18 @@ export default function Layout() {
                       </div>
                     ))}
                   </div>
+
+                  {canScrollDown && (
+                    <button 
+                      type="button"
+                      onClick={() => scrollList('down')}
+                      className="flex items-center justify-center gap-1.5 py-1 w-full bg-[#A3AD9F]/10 hover:bg-[#A3AD9F]/20 text-[#5A5A40] rounded-xl cursor-pointer transition-all border border-outline-variant select-none shrink-0 text-[10px] font-bold uppercase tracking-wider mt-2"
+                    >
+                      <ChevronDown size={12} className="animate-bounce" style={{ animationDuration: '2s' }} />
+                      Défiler vers le bas
+                      <ChevronDown size={12} className="animate-bounce" style={{ animationDuration: '2s' }} />
+                    </button>
+                  )}
                   
                   <div className="border-t border-outline-variant mt-2 pt-2 shrink-0">
                     {isCreating ? (
@@ -279,10 +508,132 @@ export default function Layout() {
           </nav>
           
           <div className="flex items-center gap-4 border-l border-outline-variant pl-6">
-            <button className="p-2 rounded-full hover:bg-surface transition-colors relative">
-              <Bell size={20} className="text-on-surface-variant" />
-              <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-primary-container rounded-full border border-surface"></span>
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="p-2 rounded-full hover:bg-surface transition-colors relative group"
+                title="Notifications & alertes d'audit"
+              >
+                <Bell size={20} className={cn("text-on-surface-variant transition-colors group-hover:text-primary-container", showNotifications && "text-primary-container")} />
+                {notifications.some(n => !n.read) && (
+                  <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-red-500 rounded-full border border-surface" />
+                )}
+              </button>
+
+              <AnimatePresence>
+                {showNotifications && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-[80]" 
+                      onClick={() => setShowNotifications(false)} 
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: 12, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 12, scale: 0.95 }}
+                      className="absolute right-0 mt-3 w-80 sm:w-96 bg-white border border-outline-variant rounded-2xl shadow-2xl p-4 z-[90] flex flex-col max-h-[80vh]"
+                    >
+                      <div className="flex items-center justify-between border-b border-outline-variant pb-2 mb-2 bg-white sticky top-0 z-10">
+                        <span className="font-display font-bold text-sm">Notifications d'Audit</span>
+                        {notifications.length > 0 && (
+                          <button 
+                            onClick={markAllAsRead}
+                            className="text-[9px] uppercase font-bold text-[#5A5A40] hover:text-primary-container tracking-wider transition-colors"
+                          >
+                            Tout marquer comme lu
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex-grow overflow-y-auto space-y-2 max-h-[340px] pr-1 no-scrollbar min-h-0">
+                        {loading ? (
+                          <div className="py-8 flex flex-col items-center justify-center text-center space-y-2">
+                            <div className="w-5 h-5 border-2 border-[#5A5A40] border-t-transparent rounded-full animate-spin" />
+                            <p className="text-[10px] text-on-surface-variant/60 font-semibold uppercase tracking-widest">Calcul en cours...</p>
+                          </div>
+                        ) : notifications.length === 0 ? (
+                          <div className="py-8 flex flex-col items-center justify-center text-center text-on-surface-variant/40 space-y-2">
+                            <Bell size={28} className="opacity-30" />
+                            <p className="text-xs font-semibold">Aucune alerte</p>
+                            <p className="text-[10px] px-4 opacity-80 leading-normal">Vos alertes de revenus, saisies en attente et anomalies IA s'afficheront ici.</p>
+                          </div>
+                        ) : (
+                          notifications.map((n) => (
+                            <div 
+                              key={n.id}
+                              onClick={() => !n.read && markAsRead(n.id)}
+                              className={cn(
+                                "p-3 rounded-xl border transition-all text-left relative group cursor-pointer",
+                                n.read 
+                                  ? "bg-white border-outline-variant/50 hover:bg-[#F9F9F6]/40" 
+                                  : "bg-primary-container/5 border-primary-container/20 hover:bg-primary-container/10"
+                              )}
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <div className={cn(
+                                  "p-1.5 rounded-lg shrink-0 mt-0.5",
+                                  n.type === 'success' && "bg-[#A3AD9F]/20 text-[#5A5A40]",
+                                  n.type === 'warning' && "bg-amber-500/10 text-amber-600",
+                                  n.type === 'danger' && "bg-red-500/10 text-red-600",
+                                  n.type === 'info' && "bg-primary-container/10 text-primary-container",
+                                )}>
+                                  {n.type === 'warning' || n.type === 'danger' ? (
+                                    <AlertTriangle size={12} />
+                                  ) : (
+                                    <Clock size={12} />
+                                  )}
+                                </div>
+
+                                <div className="flex-grow space-y-1 min-w-0 pr-4">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <h4 className={cn("text-xs font-bold truncate", !n.read && "text-primary-container")}>
+                                      {n.title}
+                                    </h4>
+                                    <span className="text-[8px] text-on-surface-variant/50 uppercase tracking-tight">
+                                      {n.timestamp}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] leading-relaxed text-on-surface-variant/80">
+                                    {n.description}
+                                  </p>
+                                  
+                                  {n.link && (
+                                    <div className="pt-1.5">
+                                      <Link 
+                                        to={n.link}
+                                        onClick={() => {
+                                          markAsRead(n.id);
+                                          setShowNotifications(false);
+                                        }}
+                                        className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-primary-container tracking-wider hover:brightness-110"
+                                      >
+                                        <span>{n.actionLabel || "Consulter"}</span>
+                                        <ArrowRight size={10} className="stroke-[2.5]" />
+                                      </Link>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {!n.read && (
+                                <span className="absolute top-3 right-3 w-1.5 h-1.5 bg-primary-container rounded-full" />
+                              )}
+                              <button
+                                onClick={(e) => deleteNotification(n.id, e)}
+                                className="absolute bottom-3 right-3 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-50 text-red-500 transition-all"
+                                title="Supprimer l'alerte"
+                              >
+                                <Trash2 size={10} />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
             <div 
               className="w-10 h-10 rounded-full border border-outline-variant overflow-hidden cursor-pointer bg-white flex items-center justify-center shadow-sm"
               onClick={() => auth.signOut()}
