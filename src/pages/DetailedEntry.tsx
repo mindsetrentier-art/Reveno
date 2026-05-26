@@ -6,11 +6,13 @@ import { useCompany } from '../context/CompanyContext';
 import { backupData } from '../lib/backup';
 import { encryptNumeric, decryptNumeric } from '../lib/encryption';
 import { motion, AnimatePresence } from 'motion/react';
-import { Save, Trash2, Plus, ArrowRight, History, Calculator, CheckCircle2, Edit2, X, Search, Filter as FilterIcon, ChevronDown, ChevronUp, CalendarSync, ArrowUp, ArrowDown, RotateCcw } from 'lucide-react';
+import { Save, Trash2, Plus, ArrowRight, History, Calculator, CheckCircle2, Edit2, X, Search, Filter as FilterIcon, ChevronDown, ChevronUp, CalendarSync, ArrowUp, ArrowDown, RotateCcw, Camera, Mic } from 'lucide-react';
 
 import { cn } from '../lib/utils';
 import { googleSignIn, getAccessToken } from '../lib/firebase';
 import { createCalendarEvent } from '../lib/googleCalendar';
+import ReceiptScanner from '../components/ReceiptScanner';
+import VoiceEntryCreator from '../components/VoiceEntryCreator';
 
 import { MONTHS, YEARS } from '../constants';
 
@@ -27,7 +29,7 @@ interface DetailedEntryData {
 }
 
 export default function DetailedEntry() {
-  const { selectedCompany, detailedEntries: entries, transactions, loading: contextLoading, categories, updateCategories } = useCompany();
+  const { selectedCompany, detailedEntries: entries, transactions, loading: contextLoading, categories, updateCategories, deleteDetailedEntry } = useCompany();
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [selectedMonth, setSelectedMonth] = useState(MONTHS[new Date().getMonth()]);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -37,6 +39,71 @@ export default function DetailedEntry() {
   const [isSyncing, setIsSyncing] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showManageCategories, setShowManageCategories] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [showVoiceEntry, setShowVoiceEntry] = useState(false);
+
+  const handleScanResult = (result: {
+    month: string;
+    year: number;
+    breakdown: Record<string, number>;
+    total: number;
+    merchant?: string;
+  }) => {
+    if (result.month) {
+      const matchedMonth = MONTHS.find(m => m.toLowerCase() === result.month.toLowerCase()) || result.month;
+      setSelectedMonth(matchedMonth);
+    }
+    if (result.year) {
+      setSelectedYear(result.year);
+    }
+    
+    setAmounts(prev => {
+      const merged = { ...prev };
+      Object.entries(result.breakdown).forEach(([catId, val]) => {
+        if (categories.some(c => c.id === catId)) {
+          merged[catId] = String(val);
+        }
+      });
+      return merged;
+    });
+
+    if (result.merchant && result.total) {
+      setTransName(`Achat ${result.merchant}`);
+      setTransAmount(String(result.total));
+    }
+  };
+
+  const handleVoiceResult = (result: {
+    month: string;
+    year: number;
+    breakdown: Record<string, number>;
+    total: number;
+    explanation?: string;
+    merchant?: string;
+  }) => {
+    if (result.month) {
+      const matchedMonth = MONTHS.find(m => m.toLowerCase() === result.month.toLowerCase()) || result.month;
+      setSelectedMonth(matchedMonth);
+    }
+    if (result.year) {
+      setSelectedYear(result.year);
+    }
+
+    setAmounts(prev => {
+      const merged = { ...prev };
+      Object.entries(result.breakdown).forEach(([catId, val]) => {
+        if (categories.some(c => c.id === catId)) {
+          merged[catId] = String(val);
+        }
+      });
+      return merged;
+    });
+
+    if (result.merchant && result.total) {
+      setTransName(`Achat ${result.merchant}`);
+      setTransAmount(String(result.total));
+    }
+  };
 
   // Transaction Entity States
   const [transName, setTransName] = useState('');
@@ -81,6 +148,18 @@ export default function DetailedEntry() {
       return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
     });
   }, [entries, searchQuery, filterMonth, filterYear, filterCategories, sortField, sortOrder]);
+
+  const filteredCategoryTotals = useMemo(() => {
+    const grandTotal = filteredEntries.reduce((acc, entry) => acc + entry.total, 0);
+    return categories.map(cat => {
+      const total = filteredEntries.reduce((acc, entry) => acc + (entry.breakdown[cat.id] || 0), 0);
+      return {
+        ...cat,
+        total,
+        percentage: grandTotal > 0 ? (total / grandTotal) * 100 : 0
+      };
+    }).filter(cat => cat.total > 0);
+  }, [filteredEntries, categories]);
 
   const toggleCategoryFilter = (catId: string) => {
     setFilterCategories(prev => 
@@ -244,7 +323,7 @@ export default function DetailedEntry() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Voulez-vous supprimer cet enregistrement ?')) return;
-    await deleteDoc(doc(db, 'detailed_entries', id));
+    await deleteDetailedEntry(id);
   };
 
   const handleDeleteAll = async () => {
@@ -421,9 +500,27 @@ export default function DetailedEntry() {
         <div className="lg:col-span-7 space-y-6">
           <div className="bg-white rounded-[32px] sm:rounded-[40px] border border-outline-variant shadow-sm overflow-hidden">
             <div className="p-6 sm:p-8 border-b border-outline-variant flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-surface/50">
-              <div className="flex items-center gap-3">
-                <Calculator className="text-primary-container" size={24} />
-                <h2 className="font-display font-bold text-xl">{editingId ? 'Modifier la Saisie' : 'Nouvelle Saisie'}</h2>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex items-center gap-3">
+                  <Calculator className="text-primary-container" size={24} />
+                  <h2 className="font-display font-bold text-xl">{editingId ? 'Modifier la Saisie' : 'Nouvelle Saisie'}</h2>
+                </div>
+                {!editingId && (
+                  <div className="flex items-center gap-2 mt-1.5 sm:mt-0 sm:ml-4">
+                    <button
+                      onClick={() => setShowScanner(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#5A5A40]/10 hover:bg-[#5A5A40]/15 text-[#5A5A40] rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm"
+                    >
+                      <Camera size={11} /> Scanner Facture
+                    </button>
+                    <button
+                      onClick={() => setShowVoiceEntry(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/15 text-primary rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm"
+                    >
+                      <Mic size={11} /> Dicter
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="flex flex-wrap gap-4 w-full sm:w-auto">
                 <div className="flex-1 sm:flex-none text-left sm:text-right">
@@ -669,7 +766,7 @@ export default function DetailedEntry() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-2 lg:opacity-0 lg:group-hover/item:opacity-100 transition-opacity">
                         <button 
                           onClick={async () => {
                             if (confirm('Supprimer cette transaction ?')) {
@@ -854,98 +951,198 @@ export default function DetailedEntry() {
                   <p className="text-on-surface-variant text-sm font-medium">Aucun résultat trouvé.</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead className="sticky top-0 bg-white z-10 shadow-sm">
-                      <tr className="bg-surface/50 border-b border-outline-variant">
-                        <th 
-                          onClick={() => { setSortField('date'); setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc'); }}
-                          className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant cursor-pointer hover:bg-surface-variant transition-colors"
-                        >
-                          <div className="flex items-center gap-1">Date {sortField === 'date' && (sortOrder === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}</div>
-                        </th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mois</th>
-                        <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Année</th>
-                        <th 
-                          onClick={() => { setSortField('total'); setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc'); }}
-                          className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant cursor-pointer hover:bg-surface-variant transition-colors"
-                        >
-                          <div className="flex items-center justify-end gap-1">Total {sortField === 'total' && (sortOrder === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}</div>
-                        </th>
-                        <th className="px-6 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-outline-variant">
-                      {filteredEntries.map((entry) => (
-                        <Fragment key={entry.id}>
-                          <tr className="hover:bg-background transition-colors group">
-                            <td className="px-6 py-4">
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                                {entry.date instanceof Date ? entry.date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : (entry.date?.toDate ? entry.date.toDate().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '')}
+                <>
+                  {/* Summary row/widget of active categories */}
+                  {filteredCategoryTotals.length > 0 && (
+                    <div className="p-6 sm:p-8 bg-surface/10 border-b border-outline-variant">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-4 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary-container animate-pulse" />
+                        Synthèse par Catégorie (Saisies Affichées)
+                      </p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {filteredCategoryTotals.map((cat) => (
+                          <motion.div
+                            key={cat.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-white border border-outline-variant hover:border-primary-container/30 rounded-2xl p-4 flex flex-col justify-between transition-all duration-300 shadow-sm"
+                          >
+                            <div className="flex items-center gap-2 mb-2.5 min-w-0">
+                              <div className={cn("w-2 h-2 rounded-full shrink-0", cat.color)} />
+                              <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider truncate">
+                                {cat.label}
+                              </span>
+                            </div>
+                            <div className="space-y-0.5">
+                              <p className="font-display font-bold text-lg leading-tight text-primary-container">
+                                {formatCurrency(cat.total)}
                               </p>
-                            </td>
-                            <td className="px-6 py-4">
-                              <p className="text-[10px] font-black uppercase tracking-widest text-primary-container bg-primary-container/10 px-2 py-0.5 rounded-md inline-block">
-                                {entry.month}
+                              <p className="text-[9px] font-medium text-on-surface-variant/60">
+                                {cat.percentage.toFixed(1)}% du total
                               </p>
-                            </td>
-                            <td className="px-6 py-4">
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                                {entry.year}
-                              </p>
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              <p className="font-display font-bold text-sm text-primary-container">{formatCurrency(entry.total)}</p>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                                <button 
-                                  onClick={() => syncToCalendar(entry)}
-                                  disabled={!!isSyncing}
-                                  className={cn(
-                                    "p-2 rounded-xl transition-colors",
-                                    isSyncing === entry.id ? "text-primary-container opacity-50" : "text-primary-container hover:bg-primary-container/10"
-                                  )}
-                                  title="Synchroniser Google Calendar"
-                                >
-                                  <CalendarSync size={16} className={isSyncing === entry.id ? "animate-spin" : ""} />
-                                </button>
-                                <button 
-                                  onClick={() => handleEdit(entry)}
-                                  className="p-2 text-primary-container hover:bg-primary-container/10 rounded-xl"
-                                  title="Modifier"
-                                >
-                                  <Edit2 size={16} />
-                                </button>
-                                <button 
-                                  onClick={() => handleDelete(entry.id)}
-                                  className="p-2 text-red-500 hover:bg-red-50 rounded-xl"
-                                  title="Supprimer"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mobile Cards List View */}
+                  <div className="sm:hidden divide-y divide-outline-variant relative z-10">
+                    {filteredEntries.map((entry) => (
+                      <div key={entry.id} className="p-5 space-y-4">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <span className="inline-block px-2 py-0.5 bg-primary-container/10 text-primary-container text-[9px] font-black uppercase rounded-md tracking-widest border border-primary-container/15">
+                              {entry.month} {entry.year}
+                            </span>
+                            <p className="text-[10px] text-on-surface-variant font-bold mt-1 uppercase tracking-wider">
+                              {entry.date instanceof Date ? entry.date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : (entry.date?.toDate ? entry.date.toDate().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '')}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => syncToCalendar(entry)}
+                              disabled={!!isSyncing}
+                              className={cn(
+                                "p-2 rounded-xl transition-colors",
+                                isSyncing === entry.id ? "bg-primary-container/10 text-primary-container opacity-50" : "text-primary-container bg-primary-container/10 hover:bg-primary-container/20"
+                              )}
+                              title="Synchroniser Google Calendar"
+                            >
+                              <CalendarSync size={16} className={isSyncing === entry.id ? "animate-spin" : ""} />
+                            </button>
+                            <button 
+                              onClick={() => handleEdit(entry)}
+                              className="p-2 text-primary-container bg-primary-container/10 rounded-xl"
+                              title="Modifier"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button 
+                              onClick={() => deleteDetailedEntry(entry.id)}
+                              className="p-2 text-red-500 bg-red-50 rounded-xl"
+                              title="Supprimer"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-surface/50 p-4 rounded-2xl space-y-3 border border-outline-variant/40">
+                          <div className="flex justify-between items-center border-b border-outline-variant/30 pb-2">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Total Saisie</p>
+                            <p className="font-display font-bold text-lg text-primary-container">{formatCurrency(entry.total)}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {(Object.entries(entry.breakdown) as [string, number][]).map(([key, val]) => (
+                              <div key={key} className="bg-white border border-outline-variant/50 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+                                <div className={cn("w-1.5 h-1.5 rounded-full", categories.find(c => c.id === key)?.color || 'bg-gray-400')} />
+                                <span className="text-[8px] font-bold text-on-surface-variant uppercase tracking-tighter">
+                                  {(categories.find(c => c.id === key)?.label || key)}: {formatCurrency(val)}
+                                </span>
                               </div>
-                            </td>
-                          </tr>
-                          <tr className="bg-surface/10 hover:bg-surface/20 transition-colors">
-                            <td colSpan={5} className="px-6 pb-4 pt-1">
-                              <div className="flex flex-wrap gap-2">
-                                {(Object.entries(entry.breakdown) as [string, number][]).map(([key, val]) => (
-                                  <div key={key} className="bg-white border border-outline-variant px-3 py-1 rounded-lg flex items-center gap-2">
-                                    <div className={cn("w-1.5 h-1.5 rounded-full", categories.find(c => c.id === key)?.color || 'bg-gray-400')} />
-                                    <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-tighter">
-                                      {(categories.find(c => c.id === key)?.id || key).toUpperCase()}: {formatCurrency(val)}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            </td>
-                          </tr>
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop Table View */}
+                  <div className="hidden sm:block overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="sticky top-0 bg-white z-10 shadow-sm">
+                        <tr className="bg-surface/50 border-b border-outline-variant">
+                          <th 
+                            onClick={() => { setSortField('date'); setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc'); }}
+                            className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant cursor-pointer hover:bg-surface-variant transition-colors"
+                          >
+                            <div className="flex items-center gap-1">Date {sortField === 'date' && (sortOrder === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}</div>
+                          </th>
+                          <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Mois</th>
+                          <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Année</th>
+                          <th 
+                            onClick={() => { setSortField('total'); setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc'); }}
+                            className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant cursor-pointer hover:bg-surface-variant transition-colors"
+                          >
+                            <div className="flex items-center justify-end gap-1">Total {sortField === 'total' && (sortOrder === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}</div>
+                          </th>
+                          <th className="px-6 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-outline-variant">
+                        {filteredEntries.map((entry) => (
+                          <Fragment key={entry.id}>
+                            <tr className="hover:bg-background transition-colors group">
+                              <td className="px-6 py-4">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                                  {entry.date instanceof Date ? entry.date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : (entry.date?.toDate ? entry.date.toDate().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : '')}
+                                </p>
+                              </td>
+                              <td className="px-6 py-4">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-primary-container bg-primary-container/10 px-2 py-0.5 rounded-md inline-block">
+                                  {entry.month}
+                                </p>
+                              </td>
+                              <td className="px-6 py-4">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                                  {entry.year}
+                                </p>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <p className="font-display font-bold text-sm text-primary-container">{formatCurrency(entry.total)}</p>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center justify-center gap-1 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
+                                  <button 
+                                    onClick={() => syncToCalendar(entry)}
+                                    disabled={!!isSyncing}
+                                    className={cn(
+                                      "p-2 rounded-xl transition-colors",
+                                      isSyncing === entry.id ? "text-primary-container opacity-50" : "text-primary-container hover:bg-primary-container/10"
+                                    )}
+                                    title="Synchroniser Google Calendar"
+                                  >
+                                    <CalendarSync size={16} className={isSyncing === entry.id ? "animate-spin" : ""} />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleEdit(entry)}
+                                    className="p-2 text-primary-container hover:bg-primary-container/10 rounded-xl"
+                                    title="Modifier"
+                                  >
+                                    <Edit2 size={16} />
+                                  </button>
+                                  <button 
+                                    onClick={() => deleteDetailedEntry(entry.id)}
+                                    className="p-2 text-red-500 hover:bg-red-50 rounded-xl"
+                                    title="Supprimer"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                            <tr className="bg-surface/10 hover:bg-surface/20 transition-colors">
+                              <td colSpan={5} className="px-6 pb-4 pt-1">
+                                <div className="flex flex-wrap gap-2">
+                                  {(Object.entries(entry.breakdown) as [string, number][]).map(([key, val]) => (
+                                    <div key={key} className="bg-white border border-outline-variant px-3 py-1 rounded-lg flex items-center gap-2">
+                                      <div className={cn("w-1.5 h-1.5 rounded-full", categories.find(c => c.id === key)?.color || 'bg-gray-400')} />
+                                      <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-tighter">
+                                        {(categories.find(c => c.id === key)?.id || key).toUpperCase()}: {formatCurrency(val)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          </Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -1045,6 +1242,22 @@ export default function DetailedEntry() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {showScanner && (
+        <ReceiptScanner
+          categories={categories}
+          onScanResult={handleScanResult}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
+
+      {showVoiceEntry && (
+        <VoiceEntryCreator
+          categories={categories}
+          onVoiceResult={handleVoiceResult}
+          onClose={() => setShowVoiceEntry(false)}
+        />
+      )}
 
       <ManageCategoriesModal 
         isOpen={showManageCategories} 

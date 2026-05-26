@@ -436,7 +436,7 @@ export default function Revenue() {
                        <span className="px-3 py-1 bg-secondary/10 text-secondary text-[10px] font-bold uppercase rounded-full tracking-widest border border-secondary/20">Réglé</span>
                     </td>
                     <td className="px-8 py-6 text-right">
-                       <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                       <div className="flex justify-end gap-3 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                           <button 
                             onClick={() => syncToCalendar(rev)}
                             disabled={!!isSyncing}

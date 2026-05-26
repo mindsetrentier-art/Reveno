@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { backupData } from '../lib/backup';
@@ -95,6 +95,7 @@ interface CompanyContextType {
   updateBudget: (month: string, year: number, targetRevenue: number, expenseLimit: number) => Promise<void>;
   categories: CategoryItem[];
   updateCategories: (newCategories: CategoryItem[]) => Promise<void>;
+  deleteDetailedEntry: (id: string) => Promise<void>;
 }
 
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
@@ -362,7 +363,6 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const deleteCompany = async (id: string) => {
     try {
       if (!auth.currentUser) return;
-      const { doc, deleteDoc } = await import('firebase/firestore');
       await deleteDoc(doc(db, 'companies', id));
 
       if (selectedCompany?.id === id) {
@@ -493,6 +493,18 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const deleteDetailedEntry = async (id: string) => {
+    // Optimistic UI update: remove immediately from list
+    setDetailedEntries((prev) => prev.filter((entry) => entry.id !== id));
+    try {
+      await deleteDoc(doc(db, 'detailed_entries', id));
+      await backupData('DETAILED_ENTRY_DELETE', { id });
+    } catch (error) {
+      console.error("Delete detailed entry error:", error);
+      alert("Erreur lors de la suppression de la saisie détaillée.");
+    }
+  };
+
   return (
     <CompanyContext.Provider value={{ 
       companies, 
@@ -510,7 +522,8 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       updateGoal,
       updateBudget,
       categories,
-      updateCategories
+      updateCategories,
+      deleteDetailedEntry
     }}>
       {children}
     </CompanyContext.Provider>

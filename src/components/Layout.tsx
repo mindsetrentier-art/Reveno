@@ -531,7 +531,7 @@ export default function Layout() {
                       initial={{ opacity: 0, y: 12, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 12, scale: 0.95 }}
-                      className="absolute right-0 mt-3 w-80 sm:w-96 bg-white border border-outline-variant rounded-2xl shadow-2xl p-4 z-[90] flex flex-col max-h-[80vh]"
+                      className="absolute -right-4 sm:right-0 mt-3 w-[calc(100vw-2rem)] sm:w-96 max-w-sm sm:max-w-none bg-white border border-outline-variant rounded-2xl shadow-2xl p-4 z-[90] flex flex-col max-h-[80vh]"
                     >
                       <div className="flex items-center justify-between border-b border-outline-variant pb-2 mb-2 bg-white sticky top-0 z-10">
                         <span className="font-display font-bold text-sm">Notifications d'Audit</span>
@@ -735,7 +735,7 @@ export default function Layout() {
       </AnimatePresence>
 
       {selectedCompany && <Copilot />}
-      {selectedCompany && <WeatherWidget />}
+      {selectedCompany && <div className="hidden md:block"><WeatherWidget /></div>}
     </div>
   );
 }

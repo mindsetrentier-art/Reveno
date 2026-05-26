@@ -93,14 +93,14 @@ export default function Copilot() {
   };
 
   return (
-    <div className="fixed bottom-8 right-0 pr-8 z-[100] flex items-end justify-end">
+    <div className="fixed md:bottom-8 bottom-24 right-0 pr-4 md:pr-8 z-[100] flex items-end justify-end">
       <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="mb-4 mr-0 w-96 max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-8rem)] bg-white rounded-[32px] shadow-2xl border border-outline-variant flex flex-col overflow-hidden absolute bottom-[70px] right-8"
+            className="mb-4 mr-0 w-96 max-w-[calc(100vw-2rem)] h-[500px] sm:h-[600px] max-h-[calc(100vh-12rem)] bg-white rounded-[32px] shadow-2xl border border-outline-variant flex flex-col overflow-hidden absolute bottom-[65px] md:bottom-[70px] right-4 md:right-8"
           >
             {/* Header */}
             <div className="p-6 bg-primary-container text-white flex justify-between items-center shrink-0">

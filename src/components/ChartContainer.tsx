@@ -39,27 +39,21 @@ export default function ChartContainer({ children, height = "100%", aspect }: Ch
     };
   }, []);
 
-  if (!isReady || width <= 0) {
-    return (
-      <div 
-        ref={containerRef} 
-        className="w-full relative flex items-center justify-center text-on-surface-variant/40 text-[10px] font-black uppercase tracking-widest bg-surface/50 rounded-2xl border border-outline-variant/30 min-h-[250px]"
-        style={{ height: typeof height === 'number' ? `${height}px` : height }}
-      >
-        <span className="animate-pulse">Calcul de la géométrie du graphique...</span>
-      </div>
-    );
-  }
-
   return (
     <div 
       ref={containerRef} 
-      className="w-full h-full relative min-h-0 min-w-0"
+      className="w-full relative min-h-[250px] min-w-0 overflow-hidden"
       style={{ height: typeof height === 'number' ? `${height}px` : height }}
     >
-      <ResponsiveContainer width="100%" height="100%" aspect={aspect}>
-        {children as any}
-      </ResponsiveContainer>
+      {!isReady || width <= 0 ? (
+        <div className="absolute inset-0 flex items-center justify-center text-on-surface-variant/40 text-[10px] font-black uppercase tracking-widest bg-surface/50 rounded-2xl border border-outline-variant/30">
+          <span className="animate-pulse">Calcul de la géométrie du graphique...</span>
+        </div>
+      ) : (
+        <ResponsiveContainer width="99%" height="99%" aspect={aspect}>
+          {children as any}
+        </ResponsiveContainer>
+      )}
     </div>
   );
 }

@@ -34,34 +34,27 @@ export default function WeatherWidget() {
   const fetchWeather = async (lat: number, lon: number) => {
     try {
       setLoading(true);
-      // Fetch current weather and 7 days forecast
-      const weatherRes = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`
-      );
-      const weatherJson = await weatherRes.json();
+      const res = await fetch(`/api/weather?lat=${lat}&lon=${lon}`);
+      if (!res.ok) throw new Error("Failed to fetch weather from proxy");
+      
+      const { weather, air } = await res.json();
 
-      // Fetch air quality and pollen
-      const airRes = await fetch(
-        `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm10,pm2_5,birch_pollen,grass_pollen,ragweed_pollen`
-      );
-      const airJson = await airRes.json();
-
-      const daily: DailyWeather[] = weatherJson.daily?.time?.slice(0, 7).map((t: string, i: number) => ({
+      const daily: DailyWeather[] = weather.daily?.time?.slice(0, 7).map((t: string, i: number) => ({
         time: t,
-        weatherCode: weatherJson.daily.weather_code[i],
-        tempMax: weatherJson.daily.temperature_2m_max[i],
-        tempMin: weatherJson.daily.temperature_2m_min[i],
+        weatherCode: weather.daily.weather_code[i],
+        tempMax: weather.daily.temperature_2m_max[i],
+        tempMin: weather.daily.temperature_2m_min[i],
       })) || [];
 
       setData({
-        temperature: weatherJson.current.temperature_2m,
-        windSpeed: weatherJson.current.wind_speed_10m,
-        weatherCode: weatherJson.current.weather_code,
-        pm10: airJson.current.pm10,
-        pm25: airJson.current.pm2_5,
-        birchPollen: airJson.current.birch_pollen || 0,
-        grassPollen: airJson.current.grass_pollen || 0,
-        ragweedPollen: airJson.current.ragweed_pollen || 0,
+        temperature: weather.current.temperature_2m,
+        windSpeed: weather.current.wind_speed_10m,
+        weatherCode: weather.current.weather_code,
+        pm10: air.current.pm10,
+        pm25: air.current.pm2_5,
+        birchPollen: air.current.birch_pollen || 0,
+        grassPollen: air.current.grass_pollen || 0,
+        ragweedPollen: air.current.ragweed_pollen || 0,
         daily,
       });
       setError(null);
@@ -74,22 +67,25 @@ export default function WeatherWidget() {
   };
 
   useEffect(() => {
-    try {
+    const tryGeolocate = () => {
       if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(
-          (pos) => fetchWeather(pos.coords.latitude, pos.coords.longitude),
+          (pos) => {
+            fetchWeather(pos.coords.latitude, pos.coords.longitude);
+          },
           (err) => {
-            console.warn('Geolocation warning callback:', err);
-            setError('Localisation requise');
-          }
+            console.warn('Geolocation blocked/failed, using Paris coordinates fallback:', err);
+            // Default to Paris, France coordinates to keep interface perfectly populated
+            fetchWeather(48.8566, 2.3522);
+          },
+          { timeout: 4000 }
         );
       } else {
-        setError('Géo non supportée');
+        fetchWeather(48.8566, 2.3522);
       }
-    } catch (err) {
-      console.error('Geolocation access error guarded:', err);
-      setError('Géo bloquée');
-    }
+    };
+
+    tryGeolocate();
   }, []);
 
   const resetTimer = () => {
@@ -164,23 +160,34 @@ export default function WeatherWidget() {
       onClick={handleInteraction}
     >
       <motion.button
+        layout
         onClick={() => setIsOpen(!isOpen)}
         whileHover={!(isDiscreet && !isOpen) ? { scale: 1.02 } : undefined}
         initial={false}
         className={cn(
-          "h-10 flex items-center rounded-full shadow-sm transition-all duration-700 border border-outline-variant overflow-hidden group",
+          "h-10 flex items-center rounded-full shadow-sm border border-outline-variant overflow-hidden group",
           isOpen ? "bg-primary-container text-white border-transparent" : "bg-white text-on-surface-variant hover:bg-surface",
           isDiscreet && !isOpen ? "max-w-[8px] gap-0 px-0 opacity-30 hover:opacity-100 hover:max-w-[40px] hover:px-2" : "max-w-[200px] gap-3 px-4 opacity-100"
         )}
+        transition={{ type: "spring", stiffness: 220, damping: 26 }}
       >
         {loading ? (
-          <div className={cn("border-2 border-current border-t-transparent rounded-full animate-spin shrink-0", isDiscreet && !isOpen ? "w-0 h-0 opacity-0" : "w-4 h-4")} />
+          <motion.div 
+            layout 
+            className={cn("border-2 border-current border-t-transparent rounded-full animate-spin shrink-0", isDiscreet && !isOpen ? "w-0 h-0 opacity-0" : "w-4 h-4")} 
+          />
         ) : (
-          <div className={cn("group-hover:scale-110 transition-transform shrink-0", isDiscreet && !isOpen ? "w-0 opacity-0" : "")}>
+          <motion.div 
+            layout 
+            className={cn("group-hover:scale-110 transition-transform shrink-0", isDiscreet && !isOpen ? "w-0 opacity-0" : "")}
+          >
             {data && getWeatherIcon(data.weatherCode, 18)}
-          </div>
+          </motion.div>
         )}
-        <div className={cn("flex flex-col items-start leading-none pr-2 shrink-0 transition-opacity", isDiscreet && !isOpen ? "opacity-0 invisible w-0" : "opacity-100 visible text-left")}>
+        <motion.div 
+          layout 
+          className={cn("flex flex-col items-start leading-none pr-2 shrink-0 transition-all duration-300", isDiscreet && !isOpen ? "opacity-0 invisible w-0" : "opacity-100 visible text-left")}
+        >
           <span className="text-[10px] font-black uppercase tracking-tighter whitespace-nowrap">
             {loading ? 'Synchro...' : error || (data ? `${data.temperature}°C` : 'Météo')}
           </span>
@@ -189,10 +196,13 @@ export default function WeatherWidget() {
               AQI: {data.pm10 < 50 ? 'Pritstine' : 'Moyen'}
             </span>
           )}
-        </div>
-        <div className={cn("transition-transform duration-500 shrink-0", isOpen && "rotate-180", isDiscreet && !isOpen ? "opacity-0 w-0" : "")}>
+        </motion.div>
+        <motion.div 
+          layout 
+          className={cn("transition-transform duration-500 shrink-0", isOpen && "rotate-180", isDiscreet && !isOpen ? "opacity-0 w-0" : "")}
+        >
            <ChevronRight size={14} />
-        </div>
+        </motion.div>
       </motion.button>
 
       <AnimatePresence>

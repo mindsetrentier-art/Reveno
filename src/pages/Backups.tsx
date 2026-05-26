@@ -3,6 +3,24 @@ import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp,
 import { db, auth } from '../lib/firebase';
 import { decryptData, encryptData, encryptNumeric } from '../lib/encryption';
 import { useCompany } from '../context/CompanyContext';
+
+const parseSafeDate = (dateVal: any): Date => {
+  if (!dateVal) return new Date();
+  if (typeof dateVal.toDate === 'function') {
+    return dateVal.toDate();
+  }
+  if (dateVal instanceof Date) {
+    return dateVal;
+  }
+  if (typeof dateVal === 'string' || typeof dateVal === 'number') {
+    const parsed = new Date(dateVal);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  }
+  if (typeof dateVal === 'object' && dateVal.seconds !== undefined) {
+    return new Date(dateVal.seconds * 1000 + (dateVal.nanoseconds || 0) / 1000000);
+  }
+  return new Date();
+};
 import { Database, Download, RotateCcw, Trash2, Clock, ShieldCheck, AlertTriangle, CheckCircle2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -169,7 +187,7 @@ export default function Backups() {
             ...cleanTrans,
             amount: encryptNumeric(cleanTrans.amount || 0),
             status: cleanTrans.status || 'pending',
-            date: date instanceof Date ? date : (date?.toDate ? date.toDate() : new Date(date)),
+            date: parseSafeDate(date),
             userId: auth.currentUser!.uid,
             createdAt: serverTimestamp(),
             isEncrypted: true
